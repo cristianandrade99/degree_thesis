@@ -103,6 +103,7 @@ class CVAE(tf.keras.Model):
 
     def train(self,train_conf):
 
+        print("training started")
         verification_Images,verif_pair_images = self.init_verif_pair_images()
 
         dataset = train_conf[dataset_k]
@@ -143,6 +144,8 @@ class CVAE(tf.keras.Model):
 
         with train_summary_writer.as_default():
             tf.summary.image("Images History",(verif_pair_images+1.0)/2.0,step=0,max_outputs=1000)
+
+        print("training finished")
 
     def log_training_tb(self,actual_losses,epoch_index_1,start_time,train_summary_writer):
         with train_summary_writer.as_default():

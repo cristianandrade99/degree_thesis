@@ -26,12 +26,12 @@ def imshow(im):
 
 def max_conv_deconv_layers(hw):
     max_deconv_lays = int(np.log2(hw))
-    print("for H,W = "+str(hw)+", # deconv layers and # conv layers <= "+str(max_deconv_lays),"\n")
+    print("for H,W = "+str(hw)+", # deconv layers and # conv layers <= "+str(max_deconv_lays))
     l = [ int(hw/np.power(2,i+1)) for i in range(max_deconv_lays) ]
     n_ls = [ i+1 for i in range(max_deconv_lays) ]
     print("(# conv layers, heigh,width of last enc volume)")
     print("(# deconv layers, heigh,width of first dec volume)")
-    print(list(zip(n_ls,l)))
+    print(list(zip(n_ls,l)),"\n")
 
     return max_deconv_lays
 
