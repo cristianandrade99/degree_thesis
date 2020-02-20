@@ -4,3 +4,5 @@ Checkpoints
 FVC2006
 Tensorboard_logs
 Validation_images
+Successful Configurations
+train_cvae_fp.py
