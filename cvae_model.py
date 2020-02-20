@@ -104,6 +104,8 @@ class CVAE(tf.keras.Model):
     def train(self,train_conf):
 
         print("training started")
+        total_time = 0.0
+
         verification_Images,verif_pair_images = self.init_verif_pair_images()
 
         dataset = train_conf[dataset_k]
@@ -128,9 +130,11 @@ class CVAE(tf.keras.Model):
             for images_batch in dataset:
                 actual_losses = self.train_step(images_batch,losses_tuple)
 
+            transc_time = np.round(time.time()-start_time,2)
+            total_time += transc_time
             epoch_index_1 = epoch_index + 1
 
-            self.log_training_tb(actual_losses,epoch_index_1,start_time,train_summary_writer)
+            self.log_training_tb(actual_losses,epoch_index_1,transc_time,train_summary_writer)
 
             if epoch_index_1%int(num_epochs/num_images) == 0:
                 _,_,ver_im_rec = self.encode_decode_images(verification_Images)
@@ -146,10 +150,12 @@ class CVAE(tf.keras.Model):
             tf.summary.image("Images History",(verif_pair_images+1.0)/2.0,step=0,max_outputs=1000)
 
         print("training finished")
+        time_avg = total_time/num_epochs
+        print("Training total time: "+str(total_time))
+        print("Average time per epoch: "+str(time_avg))
 
-    def log_training_tb(self,actual_losses,epoch_index_1,start_time,train_summary_writer):
+    def log_training_tb(self,actual_losses,epoch_index_1,transc_time,train_summary_writer):
         with train_summary_writer.as_default():
-            transc_time = np.round(time.time()-start_time,2)
             print("Epoch "+str(epoch_index_1)+": "+str(transc_time)+" s")
             tf.summary.scalar("Time per Epoch [s]",transc_time,step=epoch_index_1)
             for loss_k in actual_losses:
