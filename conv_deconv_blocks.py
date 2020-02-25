@@ -15,11 +15,9 @@ lr_act = "leakyReLU"
 th_act = "tanh"
 sgm_act = "sigmoid"
 
-# It creates or adds a encoder architecture in a keras model
-def encoder_module(model,enc_info):
-
-    if model == None:
-        model = tf.keras.Sequential()
+# It creates a encoder architecture in a keras model
+def encoder_module(enc_info):
+    model = tf.keras.Sequential()
 
     fst_layer_created = False
     input_shape = enc_info[input_shape_k]
@@ -45,11 +43,9 @@ def encoder_module(model,enc_info):
 
     return model
 
-# It creates or adds a decoder architecture in a keras model
-def decoder_module(model,dec_info):
-
-    if model == None:
-        model = tf.keras.Sequential()
+# It creates a decoder architecture in a keras model
+def decoder_module(dec_info):
+    model = tf.keras.Sequential()
 
     den_shs, use_bn, act, input_shape = dec_info[dec_den_info_k]
 
