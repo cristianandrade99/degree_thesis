@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
+import tensorflow as tf
 import numpy as np
+import datetime
+import shutil
 import glob
 import os
-import shutil
 
 def imshow(im):
 
@@ -53,3 +55,8 @@ def delete_All(directory):
                 pass
                 os.remove(f)
         print("\n","Deleted Files")
+
+def tf_summary_writer(folder_name):
+    current_time = datetime.datetime.now().strftime("%d-%m-%Y_%I-%M-%S-%p")
+    train_log_dir = folder_name+"/"+current_time
+    return tf.summary.create_file_writer(train_log_dir)

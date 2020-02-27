@@ -1,8 +1,9 @@
 .ipynb_checkpoints
 __pycache__
-Checkpoints
-FVC2006
-Tensorboard_logs
-Validation_images
-Successful Configurations
+code_Notebooks
+data_FVC2006
+img_Performance_Images
+img_Validation_images
+tf_Checkpoints
+tf_Tensorboard_logs
 train_cvae_fp.py

@@ -1,5 +1,4 @@
 import conv_deconv_blocks as cdb
-import matplotlib.pyplot as plt
 import data_processing as dp
 import custom_layers as cl
 import tensorflow as tf
@@ -16,9 +15,7 @@ use_latest_checkpoint_k = "use_latest_checkpoint"
 num_epochs_k = "num_epochs_k"
 percent_progress_savings_k = "percent_progress_savings"
 num_images_k = "num_images"
-batch_size_k = "batch_size"
 create_checkpoints_k = "create_checkpoints"
-latent_dim_k = "latent_dim"
 types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses"
 tensorboard_folder_name_k = "tensorboard_folder_name"
@@ -42,9 +39,9 @@ class CVAE(tf.keras.Model):
 
         self.in_shape = enc_config[cdb.input_shape_k]
 
-        self.encoder = cdb.encoder_module(None,enc_config)
+        self.encoder = cdb.encoder_module(enc_config)
         self.sampler = cl.Sample()
-        self.decoder = cdb.decoder_module(None,dec_config)
+        self.decoder = cdb.decoder_module(dec_config)
 
         self.cvae_optimizer = tf.keras.optimizers.Adam(config[adam_alpha_k])
 
@@ -55,9 +52,6 @@ class CVAE(tf.keras.Model):
 
         self.checkpoint_manager = tf.train.CheckpointManager(self.tf_checkpoint,config[checkpoints_folder_k],max_to_keep=config[max_checkpoints_k])
 
-        self.batch_size = config[batch_size_k]
-        self.latent_dim = config[latent_dim_k]
-
     @tf.function
     def train_step(self,images_batch,losses_tuple):
 
@@ -66,7 +60,7 @@ class CVAE(tf.keras.Model):
 
         with tf.GradientTape() as model_tape:
 
-            mean, logvar, images_batch_reconstructed = self.encode_decode_images(images_batch[0:1,:],True)
+            mean, logvar, images_batch_reconstructed = self.encode_decode_images(images_batch,True)
             losses,alphas = losses_tuple
 
             for loss,alp in zip(losses,alphas):

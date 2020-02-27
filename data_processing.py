@@ -7,7 +7,7 @@ N_H = 64
 N_W = 64
 N_C = 1
 
-def load_process_fp_dataset(data_dir_patt,input_shape_k,batch_size):
+def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     global N_H,N_W,N_C
 
     ds_data_dirs = tf.data.Dataset.list_files("./"+data_dir_patt[0]+"/*"+data_dir_patt[1],shuffle=False)
@@ -18,9 +18,9 @@ def load_process_fp_dataset(data_dir_patt,input_shape_k,batch_size):
     print("Fingerprints Loaded:",len(data_list),"from:",data_dir_patt[0],"\n")
     '''
 
-    N_H = input_shape_k[0]
-    N_W = input_shape_k[1]
-    N_C = input_shape_k[2]
+    N_H = input_shape[0]
+    N_W = input_shape[1]
+    N_C = input_shape[2]
 
     ds_data_dirs = ds_data_dirs.map(load_process_images, num_parallel_calls=AUTOTUNE)
 
@@ -47,14 +47,14 @@ def load_process_images(file_path):
 
     return img
 
-def load_verification_images(n_h,n_w,n_c):
+def load_verification_images(fps_shape,num_fps):
     global N_H,N_W,N_C
 
-    N_H = n_h
-    N_W = n_w
-    N_C = n_c
+    N_H = fps_shape[0]
+    N_W = fps_shape[1]
+    N_C = fps_shape[2]
 
-    validation_images_source = "./Validation_images/*.png"
+    validation_images_source = "./img_Validation_images/*.png"
     ds_data_dirs = tf.data.Dataset.list_files(validation_images_source,shuffle=False)
     ds_data_dirs = ds_data_dirs.map(load_process_images, num_parallel_calls=AUTOTUNE)
     ds_data_dirs = ds_data_dirs.batch(10)
@@ -62,4 +62,4 @@ def load_verification_images(n_h,n_w,n_c):
     for v in ds_data_dirs:
         ds = v
 
-    return ds
+    return ds[0:num_fps,:]

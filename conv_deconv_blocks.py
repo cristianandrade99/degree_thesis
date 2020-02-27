@@ -7,7 +7,7 @@ enc_fin_den_len_k = "f_den_len"
 dec_den_info_k = "dec_den_info"
 
 enc_dec_lys_info_k = "enc_dec_lys_info"
-input_shape_k = "input_shape"
+fps_shape_k = "fps_shape"
 
 # Activations
 r_act = "ReLU"
@@ -20,7 +20,7 @@ def encoder_module(enc_info):
     model = tf.keras.Sequential()
 
     fst_layer_created = False
-    input_shape = enc_info[input_shape_k]
+    input_shape = enc_info[fps_shape_k]
 
     for depth, use_bn, act, f, s in enc_info[enc_dec_lys_info_k]:
 
