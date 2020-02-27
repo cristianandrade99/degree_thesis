@@ -85,6 +85,7 @@ class GAN_CVAE(tf.keras.Model):
                     actual_losses[tv_loss] = act_loss
                 elif loss == cross_loss:
                     act_loss = alph*tf.keras.losses.binary_cross_entropy(fps_batch,fps_processed,from_logits=True)
+                    actual_losses[cross_loss] = act_loss
 
                 total_loss += act_loss
             actual_losses[total_loss_k] = total_loss
@@ -116,10 +117,9 @@ class GAN_CVAE(tf.keras.Model):
             for fps_batch in dataset:
                 actual_losses = self.cvae_train_step(fps_batch,losses_tuple)
 
-            epoch_index_1 = epoch_index+1
             self.cvae_data_to_tensorboard(actual_losses,epoch_index,tf_summary_writer)
-            self.cvae_progress_fps_to_folder(epoch_index_1,num_images,num_epochs,out_images_folder)
-            self.cvae_save_checkpoint(epoch_index_1,checkpoints_frecuency)
+            self.cvae_progress_fps_to_folder(epoch_index+1,num_images,num_epochs,out_images_folder,4)
+            self.cvae_save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
         self.log_training_end(start_time,num_epochs)
 
@@ -130,16 +130,15 @@ class GAN_CVAE(tf.keras.Model):
         fps_processed = self.cvae_decoder(z,training=is_training)
         return mean,logvar,fps_processed
 
-    def cvae_data_to_tensorboard(self,actual_losses,epoch_index_1,tf_summary_writer):
+    def cvae_data_to_tensorboard(self,actual_losses,epoch_index,tf_summary_writer):
         with tf_summary_writer.as_default():
             for loss_k in actual_losses:
-                tf.summary.scalar(loss_k,actual_losses[loss_k],step=epoch_index_1)
-            tf.summary.scalar(total_loss_k,actual_losses[total_loss_k],step=epoch_index_1)
+                tf.summary.scalar(loss_k,actual_losses[loss_k],step=epoch_index)
+            tf.summary.scalar(total_loss_k,actual_losses[total_loss_k],step=epoch_index)
 
-    def cvae_progress_fps_to_folder(self,epoch_index_1,num_images,num_epochs,out_images_folder):
+    def cvae_progress_fps_to_folder(self,epoch_index,num_images,num_epochs,out_images_folder,num_fps):
 
-        if( epoch_index_1%(num_epochs/num_images) == 0 ):
-            num_fps = 3
+        if( epoch_index%(num_epochs/num_images) == 0 ):
             fps_batch = dp.load_verification_images(self.fps_shape,num_fps).numpy()
             _,_,fps_processed = self.cvae_encode_decode_fps(fps_batch)
             fps_processed = fps_processed.numpy()
@@ -153,7 +152,7 @@ class GAN_CVAE(tf.keras.Model):
                 fps_processed = np.reshape(fps_processed,(fps_processed_shapes[0],fps_processed_shapes[1],fps_processed_shapes[2]))
 
             fig,axs = plt.subplots(num_fps,2,figsize=(5,5),constrained_layout=True)
-            fig.suptitle("Epoch: {}".format(epoch_index_1))
+            fig.suptitle("Epoch: {}".format(epoch_index))
 
             for i in range(num_fps):
                 axs[i,0].imshow(fps_batch[i,:],cmap="gray")
@@ -161,17 +160,17 @@ class GAN_CVAE(tf.keras.Model):
                 axs[i,0].axis('off')
                 axs[i,1].axis('off')
 
-            plt.savefig(out_images_folder+"/fp_at_epoch__{}.png".format(epoch_index_1),bbox_inches='tight')
+            plt.savefig(out_images_folder+"/fp_at_epoch__{}.png".format(epoch_index),bbox_inches='tight')
             plt.close(fig)
 
-    def cvae_save_checkpoint(self,epoch_index_1,checkpoints_frecuency):
-        if( epoch_index_1%checkpoints_frecuency == 0 ):
+    def cvae_save_checkpoint(self,epoch_index,checkpoints_frecuency):
+        if( epoch_index%checkpoints_frecuency == 0 ):
             self.cvae_checkpoint_manager.save()
 
     def log_training_end(self,start_time,num_epochs):
-        print("Training finished")
         print("Training total time: "+str(np.round(time.time()-start_time,2)))
         print("Average time per epoch: "+str(np.round((time.time()-start_time)/num_epochs,2)))
+        print("Training finished")
 
     def upgrade_learning_rate(self,model,learning_rate):
         optimizer = self.cvae_optimizer if model == cvae_model else self.gan_optimizer
