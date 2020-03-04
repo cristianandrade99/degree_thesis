@@ -27,6 +27,7 @@ types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
 tensorboard_folder_k = "tensorboard_folder_k"
 out_images_folder_k = "out_images_folder"
+learning_rate_k = "learning_rate"
 
 cvae_model = "cvae_model"
 gan_model = "gan_model"
@@ -118,6 +119,9 @@ class GAN_CVAE(tf.keras.Model):
         num_images = train_conf[num_images_k]
         out_images_folder = train_conf[out_images_folder_k]
 
+        learning_rate = train_conf[learning_rate_k]
+        self.cvae_optimizer.learning_rate = learning_rate
+
         tensorboard_folder = train_conf[tensorboard_folder_k]
         tf_summary_writer = cu.tf_summary_writer(tensorboard_folder)
 
@@ -192,6 +196,10 @@ class GAN_CVAE(tf.keras.Model):
         checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
         num_images = train_conf[num_images_k]
         out_images_folder = train_conf[out_images_folder_k]
+
+        learning_rate = train_conf[learning_rate_k]
+        self.gan_gen_optimizer.learning_rate = learning_rate
+        self.gan_disc_optimizer.learning_rate = learning_rate
 
         tensorboard_folder = train_conf[tensorboard_folder_k]
         tf_summary_writer = cu.tf_summary_writer(tensorboard_folder)
