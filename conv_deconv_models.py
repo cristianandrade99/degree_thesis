@@ -6,7 +6,6 @@ import cris_utils as cu
 import tensorflow as tf
 import datetime as dt
 import numpy as np
-import warnings
 import time
 
 fps_shape_k = cdb.fps_shape_k
@@ -21,6 +20,7 @@ checkpoints_frecuency_k = "checkpoints_frecuency"
 num_images_k = "num_images"
 types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
+num_histograms_k = "num_histograms"
 
 learning_rate_k = "learning_rate"
 disc_learning_rate_k = "disc_learning_rate"
@@ -36,22 +36,21 @@ tv_loss = "Total Variation Loss"
 cross_loss = "CrossEntropy Loss"
 total_loss_k = "Total Loss"
 
-gan_disc_batch_loss_k = "Gan Discriminator Batch Loss"
-gan_disc_processed_loss_k = "Gan Discriminator Processed Loss"
-gan_disc_generated_loss_k = "Gan Discriminator Generated Loss"
-gan_gen_loss_k = "Gan Generator Loss"
+gan_disc_batch_loss_k = "Discriminator Real Loss"
+gan_disc_processed_loss_k = "Discriminator Fake Loss"
+gan_disc_generated_loss_k = "Discriminator Fake Loss"
+gan_gen_loss_k = "Generator Loss"
 
-gan_disc_batch_accuracy_k = "Gan Discriminator Batch Accuracy"
-gan_disc_processed_accurac_k = "Gan Discriminator Processed Accuracy"
+gan_disc_batch_accuracy_k = "Discriminator Real Accuracy"
+gan_disc_processed_accurac_k = "Discriminator Fake Accuracy"
 
-disc_batch_gradients_k = "Discriminator Batch Gradients"
-disc_generated_gradients_k = "Discriminator Processed Gradients"
+disc_batch_gradients_k = "Discriminator Real Gradients"
+disc_generated_gradients_k = "Discriminator Fake Gradients"
 gen_gradients_k = "Generator Gradients"
 
 binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 max_checkpoints_to_keep = 56
 num_progress_images = 4
-num_histograms = 10
 
 CVAE = "CVAE"
 GAN_CVAE = "GAN_CVAE"
@@ -114,6 +113,7 @@ class CVAE():
         checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
         num_images = train_conf[num_images_k]
         learning_rate = train_conf[learning_rate_k]
+        num_histograms = train_conf[num_histograms_k]
 
         self.optimizer.learning_rate = learning_rate
 
@@ -129,7 +129,7 @@ class CVAE():
                 actual_losses,gradients = self.train_step(fps_batch,losses_tuple)
 
             processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images,self.fps_shape,self.encode_decode_fps)
-            self.data_to_tensorboard(actual_losses,gradients,epoch_index,tf_summary_writer)
+            self.data_to_tensorboard(actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
@@ -141,15 +141,17 @@ class CVAE():
         fps_processed = self.decoder(z,training=is_training)
         return mean,logvar,fps_processed
 
-    def data_to_tensorboard(self,actual_losses,gradients,epoch_index,tf_summary_writer):
+    def data_to_tensorboard(self,actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms):
         with tf_summary_writer.as_default():
             for loss_k in actual_losses:
                 tf.summary.scalar(loss_k,actual_losses[loss_k],step=epoch_index)
             tf.summary.scalar(total_loss_k,actual_losses[total_loss_k],step=epoch_index)
 
-            trainable_variables = self.encoder.trainable_variables+self.decoder.trainable_variables
-            for gradient,trainable_variable in zip(gradients,trainable_variables):
-                tf.summary.histogram(trainable_variable.name+" gradient",gradient,step=epoch_index)
+            n_hist = num_histograms if num_epochs>=num_histograms else num_epochs
+            if( n_hist != 0 and epoch_index%int(num_epochs/n_hist) == 0 ):
+                trainable_variables = self.encoder.trainable_variables+self.decoder.trainable_variables
+                for gradient,trainable_variable in zip(gradients,trainable_variables):
+                    tf.summary.histogram(trainable_variable.name+" gradient",gradient,step=epoch_index)
 
     def save_checkpoint(self,epoch_index,checkpoints_frecuency):
         if( epoch_index%checkpoints_frecuency == 0 ):
@@ -227,6 +229,7 @@ class GAN_CVAE():
         num_images = train_conf[num_images_k]
         disc_learning_rate = train_conf[disc_learning_rate_k]
         gen_learning_rate = train_conf[gen_learning_rate_k]
+        num_histograms = train_conf[num_histograms_k]
 
         self.disc_optimizer.learning_rate = disc_learning_rate
         self.gen_optimizer.learning_rate = gen_learning_rate
@@ -246,7 +249,7 @@ class GAN_CVAE():
             for fps_batch in dataset:
                 step_info = self.train_step(fps_batch,aux_train_data)
 
-            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,self)
+            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
             processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images,self.fps_shape,self.encode_decode_fps)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
@@ -337,6 +340,7 @@ class GAN():
         num_images = train_conf[num_images_k]
         disc_learning_rate = train_conf[disc_learning_rate_k]
         gen_learning_rate = train_conf[gen_learning_rate_k]
+        num_histograms = train_conf[num_histograms_k]
 
         self.disc_optimizer.learning_rate = disc_learning_rate
         self.gen_optimizer.learning_rate = gen_learning_rate
@@ -356,7 +360,7 @@ class GAN():
             for fps_batch in dataset:
                 step_info = self.train_step(fps_batch,aux_train_data)
 
-            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,self)
+            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
             self.generated_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
@@ -397,7 +401,7 @@ class GAN():
             plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
             plt.close(fig)
 
-# GENERAL METHODS
+# GLOBAL METHODS
 def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_folder,num_fps,fps_shape,encode_decode_fps):
 
     n_images = num_images if num_epochs>=num_images else num_epochs
@@ -426,13 +430,13 @@ def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_f
         plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
         plt.close(fig)
 
-def gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,self):
+def gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self):
     with tf_summary_writer.as_default():
         for key in step_info[0]:
             tf.summary.scalar(key,tf.squeeze(step_info[0][key]),step=epoch_index)
 
         n_hist = num_histograms if num_epochs>=num_histograms else num_epochs
-        if( epoch_index%int(num_epochs/n_hist) == 0 ):
+        if( n_hist != 0 and epoch_index%int(num_epochs/n_hist) == 0 ):
             trainable_variables = {}
             trainable_variables[disc_batch_gradients_k] = self.discriminator.trainable_variables
             trainable_variables[disc_generated_gradients_k] = self.discriminator.trainable_variables
