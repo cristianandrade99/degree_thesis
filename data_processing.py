@@ -7,6 +7,8 @@ N_H = 64
 N_W = 64
 N_C = 1
 
+verification_noises = None
+
 def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     global N_H,N_W,N_C
 
@@ -63,3 +65,8 @@ def load_verification_images(fps_shape,num_fps):
         ds = v
 
     return ds[0:num_fps,:]
+
+def load_verification_noises(num_fps,latent_dim):
+    global verification_noises
+    verification_noises = verification_noises if verification_noises != None else tf.random.normal([num_fps,latent_dim])
+    return verification_noises

@@ -6,6 +6,10 @@ import shutil
 import glob
 import os
 
+performance_imgs_folder_name = "Img_Performance_Images"
+tensorboard_folder_name = "tf_Tensorboard_logs"
+checkpoints_folder_name = "tf_Checkpoints"
+
 def imshow(im):
 
     h = im.shape[0]
@@ -57,6 +61,14 @@ def delete_All(directory):
         print("\n","Deleted Files")
 
 def tf_summary_writer(folder_name):
-    current_time = datetime.datetime.now().strftime("%d-%m-%Y_%I-%M-%S-%p")
-    train_log_dir = folder_name+"/"+current_time
-    return tf.summary.create_file_writer(train_log_dir)
+    return tf.summary.create_file_writer(folder_name+tensorboard_folder_name)
+
+def create_output_folders(typ,run_description):
+    outputs_folder = "./Output_data/"+typ+"_"+get_time_custom_format()+"_"+run_description+"/"
+    os.makedirs(outputs_folder+performance_imgs_folder_name)
+    os.makedirs(outputs_folder+tensorboard_folder_name)
+    os.makedirs(outputs_folder+checkpoints_folder_name)
+    return outputs_folder
+
+def get_time_custom_format():
+    return datetime.datetime.now().strftime("%d%b%y--%I-%M-%S-%p")
