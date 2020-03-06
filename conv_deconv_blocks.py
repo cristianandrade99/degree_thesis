@@ -22,8 +22,9 @@ def encoder_module(enc_info):
     fst_layer_created = False
     input_shape = enc_info[fps_shape_k]
 
+    i = 0
     for depth, use_bn, act, f, s in enc_info[enc_dec_lys_info_k]:
-
+        i+=1
         actual_layer = layers.Conv2D(depth, (f, f), strides=(s, s), padding='same', use_bias=not use_bn)
 
         if not fst_layer_created:
