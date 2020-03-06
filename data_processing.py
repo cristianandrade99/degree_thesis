@@ -27,7 +27,7 @@ def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     ds_data_dirs = ds_data_dirs.map(load_process_images, num_parallel_calls=AUTOTUNE)
 
     ds_data_dirs = ds_data_dirs.shuffle(buffer_size=128)
-    ds_data_dirs = ds_data_dirs.batch(batch_size)
+    ds_data_dirs = ds_data_dirs.batch(batch_size,True)
     ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
 
     '''
