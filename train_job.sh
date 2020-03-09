@@ -15,4 +15,4 @@ module load tensorflow/GPU.2.0.0
 module load anaconda/python3.7
 #python script_cvae.py prueba1
 #python script_gan_cvae.py prueba2
-python script_gan.py 256x256_50_it
+python script_gan.py 256x256_50_
