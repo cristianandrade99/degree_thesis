@@ -128,7 +128,7 @@ class CVAE():
             for fps_batch in dataset:
                 actual_losses,gradients = self.train_step(fps_batch,losses_tuple)
 
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images,self.fps_shape,self.encode_decode_fps)
+            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.fps_shape,self.encode_decode_fps)
             self.data_to_tensorboard(actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
@@ -250,7 +250,7 @@ class GAN_CVAE():
                 step_info = self.train_step(fps_batch,aux_train_data)
 
             gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images,self.fps_shape,self.encode_decode_fps)
+            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.fps_shape,self.encode_decode_fps)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
@@ -295,6 +295,8 @@ class GAN():
 
         self.disc_optimizer = tf.keras.optimizers.Adam()
         self.gen_optimizer = tf.keras.optimizers.Adam()
+
+        self.verification_noises = tf.random.normal([num_progress_images,self.latent_dim]).numpy()
 
     @tf.function
     def train_step(self,fps_batch,aux_train_data):
@@ -361,7 +363,7 @@ class GAN():
                 step_info = self.train_step(fps_batch,aux_train_data)
 
             gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
-            self.generated_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,num_progress_images)
+            self.generated_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
@@ -380,21 +382,21 @@ class GAN():
                                                                  folder_name+cu.checkpoints_folder_name,
                                                                  max_to_keep=max_checkpoints_to_keep)
 
-    def generated_fps_progress_to_folder(self,epoch_index,num_images,num_epochs,outputs_folder,num_fps):
+    def generated_fps_progress_to_folder(self,epoch_index,num_images,num_epochs,outputs_folder):
 
         n_images = num_images if num_epochs>=num_images else num_epochs
         if( epoch_index%int(num_epochs/n_images) == 0 ):
-            z = dp.load_verification_noises(num_fps,self.latent_dim).numpy()
+            z = self.verification_noises
             fps_generated = self.generator(z,training=False).numpy()
 
             fps_generated_shapes = np.shape(fps_generated)
             if fps_generated_shapes[3] == 1:
                 fps_generated = np.reshape(fps_generated,(fps_generated_shapes[0],fps_generated_shapes[1],fps_generated_shapes[2]))
 
-            fig,axs = plt.subplots(num_fps,1,figsize=(5,5),constrained_layout=True)
+            fig,axs = plt.subplots(num_progress_images,1,figsize=(5,5),constrained_layout=True)
             fig.suptitle("Epoch: {}".format(epoch_index))
 
-            for i in range(num_fps):
+            for i in range(num_progress_images):
                 axs[i].imshow(fps_generated[i,:],cmap="gray")
                 axs[i].axis('off')
 
@@ -402,11 +404,11 @@ class GAN():
             plt.close(fig)
 
 # GLOBAL METHODS
-def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_folder,num_fps,fps_shape,encode_decode_fps):
+def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_folder,fps_shape,encode_decode_fps):
 
     n_images = num_images if num_epochs>=num_images else num_epochs
     if( epoch_index%int(num_epochs/n_images) == 0 ):
-        fps_batch = dp.load_verification_images(fps_shape,num_fps).numpy()
+        fps_batch = dp.load_verification_images(fps_shape,num_progress_images).numpy()
         _,_,fps_processed = encode_decode_fps(fps_batch)
         fps_processed = fps_processed.numpy()
 
@@ -418,10 +420,10 @@ def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_f
         if fps_processed_shapes[3] == 1:
             fps_processed = np.reshape(fps_processed,(fps_processed_shapes[0],fps_processed_shapes[1],fps_processed_shapes[2]))
 
-        fig,axs = plt.subplots(num_fps,2,figsize=(5,5),constrained_layout=True)
+        fig,axs = plt.subplots(num_progress_images,2,figsize=(5,5),constrained_layout=True)
         fig.suptitle("Epoch: {}".format(epoch_index))
 
-        for i in range(num_fps):
+        for i in range(num_progress_images):
             axs[i,0].imshow(fps_batch[i,:],cmap="gray")
             axs[i,1].imshow(fps_processed[i,:],cmap="gray")
             axs[i,0].axis('off')

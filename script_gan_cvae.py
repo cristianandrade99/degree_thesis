@@ -19,7 +19,7 @@ N_C = 1
 config = {
     md.batch_size_k: 16,
     md.latent_dim_k: 100,
-    md.data_dir_patt_k: ["data_FVC2006","png"],
+    md.data_dir_patt_k: ["./data_FVC2006","png"],
     md.fps_shape_k: (N_H,N_W,N_C)
 }
 
