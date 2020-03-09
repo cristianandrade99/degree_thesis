@@ -8,3 +8,4 @@ tf_Checkpoints
 tf_Tensorboard_logs
 train_cvae_fp.py
 finger_gan_train.py
+MODELS.ipynb
