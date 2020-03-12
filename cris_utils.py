@@ -21,6 +21,7 @@ def imshow(im):
     t2 = "("+str(np.min(im).round(2))+","+str(np.max(im).round(2))+")"
 
     cmap = "gray"
+    
     if(c==1):
         im_p = im.reshape((im.shape[0],im.shape[1]))
         cmap = "gray"
