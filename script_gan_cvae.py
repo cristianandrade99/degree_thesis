@@ -12,46 +12,49 @@ print("Comprobación de la GPU:",tf.config.experimental.list_physical_devices('G
 
 run_description = sys.argv[1] if len(sys.argv)>1 else "DEFAULT"
 
-N_H = 64
-N_W = 64
+N_H = 128
+N_W = 128
 N_C = 1
 
 config = {
     md.batch_size_k: 16,
-    md.latent_dim_k: 100,
-    md.data_dir_patt_k: ["./data_FVC2006","png"],
+    md.latent_dim_k: 200,
+    md.data_dir_patt_k: ["./Data/fvc2006_png","png"],
     md.fps_shape_k: (N_H,N_W,N_C)
 }
 
 ds_data_dirs = dp.load_process_fp_dataset(config[md.data_dir_patt_k],config[md.fps_shape_k],config[md.batch_size_k])
 
 gan_cvae_train_conf = {
-    md.num_epochs_k: 5,
+    md.num_epochs_k: 2,
     md.num_images_k: 10,
     md.checkpoints_frecuency_k: 10,
     md.use_latest_checkpoint_k: False,
-    md.disc_learning_rate_k: 0.0002,
-    md.gen_learning_rate_k: 0.0002,
+    md.disc_learning_rate_k: 0.00002,
+    md.gen_learning_rate_k: 0.00001,
     md.dataset_k: ds_data_dirs,
     md.num_histograms_k: 0
 }
-
 cvae_enc_convs = [(16,True,cdb.lr_act,3,2),
               (32,False,cdb.lr_act,3,2),
               (64,True,cdb.lr_act,3,2),
              (128,False,cdb.lr_act,3,2),
-             (256,False,cdb.lr_act,3,2)]
+             (256,True,cdb.lr_act,3,2),
+	      512,False,cdb.lr_act,3,2)]
 
-cvae_dec_deconvs = [(512,True,cdb.r_act,3,2),
+cvae_dec_deconvs = [(512,False,cdb.r_act,3,2),
                (256,True,cdb.r_act,3,2),
-               (128,True,cdb.r_act,3,2),
+               (128,False,cdb.r_act,3,2),
                (64,True,cdb.r_act,3,2),
-               (N_C,False,cdb.th_act,3,2)]
+               (32,True,cdb.r_act,3,2),
+		N_C,False,cbd.th_act,3,2)]
 
-gan_disc_convs = [(64,False,cdb.lr_act,3,2),
-              (128,True,cdb.lr_act,3,2),
-              (256,True,cdb.lr_act,3,2),
-             (512,True,cdb.lr_act,3,2)]
+gan_disc_convs = [(16,False,cbd.lr_act,3,2),
+		  (32,True,cbd.lr_act,3,2),
+		  (64,False,cdb.lr_act,3,2),
+              	  (128,True,cdb.lr_act,3,2),
+              	  (256,False,cdb.lr_act,3,2),
+              	  (512,True,cdb.lr_act,3,2)]
 
 n_cvae_conv_ls = len(cvae_enc_convs)
 n_cvae_deconv_ls = len(cvae_dec_deconvs)

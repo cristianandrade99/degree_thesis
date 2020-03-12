@@ -76,7 +76,7 @@ def keras_activation_layer(act):
     if act == r_act:
         activ = layers.ReLU()
     elif act == lr_act:
-        activ = layers.LeakyReLU()
+        activ = layers.LeakyReLU(0.2)
     elif act == th_act:
         activ = cl.Tanh()
     elif act == sgm_act:
