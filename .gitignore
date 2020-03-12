@@ -4,4 +4,7 @@ Data
 img_Validation_images
 Output_data
 MODELS.ipynb
+script_cvae.py
+script_gan_cvae.py
+script_gan.py
 train_job.sh
