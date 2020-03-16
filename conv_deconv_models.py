@@ -49,7 +49,7 @@ disc_generated_gradients_k = "Discriminator Fake Gradients"
 gen_gradients_k = "Generator Gradients"
 
 binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-max_checkpoints_to_keep = 56
+max_checkpoints_to_keep = 2
 num_progress_images = 4
 
 CVAE = "CVAE"

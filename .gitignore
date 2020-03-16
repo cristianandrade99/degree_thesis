@@ -7,4 +7,5 @@ MODELS.ipynb
 script_cvae.py
 script_gan_cvae.py
 script_gan.py
-train_job.sh
+gpu_train_job.sh
+cpu_job.sh
