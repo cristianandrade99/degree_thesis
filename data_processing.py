@@ -15,10 +15,10 @@ def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     paterns = list_folder_patterns(data_dir_patt[0],data_dir_patt[1])
     ds_data_dirs = tf.data.Dataset.list_files(paterns,shuffle=False)
 
-    data_list = list(ds_data_dirs.as_numpy_iterator())
+    '''data_list = list(ds_data_dirs.as_numpy_iterator())
     print("")
-    print("Fingerprints Loaded:",len(data_list),"from:",data_dir_patt[0],"\n")
-    print(data_list[0:2])
+    print("Fingerprints Loaded:",len(data_list),"from:",data_dir_patt[0],"\n")'''
+    
     N_H = input_shape[0]
     N_W = input_shape[1]
     N_C = input_shape[2]
@@ -29,9 +29,9 @@ def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     ds_data_dirs = ds_data_dirs.batch(batch_size,True)
     ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
 
-    data_list_batched = list(ds_data_dirs.as_numpy_iterator())
+    '''data_list_batched = list(ds_data_dirs.as_numpy_iterator())
     print("Batches Created:",len(data_list_batched))
-    print("shape of batch:",data_list_batched[0].shape,"\n")
+    print("shape of batch:",data_list_batched[0].shape,"\n")'''
 
     return ds_data_dirs
 
