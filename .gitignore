@@ -1,7 +1,7 @@
 .ipynb_checkpoints
 __pycache__
 Data
-img_Validation_images
+Img_Validation_images
 Output_data
 MODELS.ipynb
 script_cvae.py
@@ -9,3 +9,4 @@ script_gan_cvae.py
 script_gan.py
 gpu_train_job.sh
 cpu_job.sh
+Job_logs

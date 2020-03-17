@@ -41,7 +41,7 @@ def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
 def load_process_images(file_path):
     global N_H,N_W,N_C
     img = tf.io.read_file(file_path)
-    img = tf.io.decode_image(img,channels=N_C)
+    img = tf.io.decode_png(img,channels=N_C)
     img = tf.image.resize(img, [N_H, N_W],preserve_aspect_ratio=False)
     img = tf.cast(img,tf.float32)
     img = img*(2.0/255.0)-1.0
