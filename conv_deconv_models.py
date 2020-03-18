@@ -22,6 +22,9 @@ types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
 num_histograms_k = "num_histograms"
 
+disc_adam_params_k = "disc_adam_params"
+gen_adam_params_k = "disc_adam_params"
+
 learning_rate_k = "learning_rate"
 disc_learning_rate_k = "disc_learning_rate"
 gen_learning_rate_k = "gen_learning_rate"
@@ -198,9 +201,9 @@ class GAN_CVAE():
             fps_batch_logits = self.discriminator(fps_batch,training=True)
             fps_processed_logits = self.discriminator(fps_processed,training=True)
 
-            ones_batch,zeros_batch = aux_train_data[0],aux_train_data[1]
+            alphas_ones_batch,ones_batch,zeros_batch = aux_train_data[0],aux_train_data[1],aux_train_data[2]
 
-            actual_info[gan_disc_batch_loss_k] = binary_crossentropy(ones_batch,fps_batch_logits)
+            actual_info[gan_disc_batch_loss_k] = binary_crossentropy(alphas_ones_batch,fps_batch_logits)
             actual_info[gan_disc_processed_loss_k] = binary_crossentropy(zeros_batch,fps_processed_logits)
             actual_info[gan_gen_loss_k] = binary_crossentropy(ones_batch,fps_processed_logits)
 
@@ -228,13 +231,16 @@ class GAN_CVAE():
         use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
         checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
         num_images = train_conf[num_images_k]
-        disc_learning_rate = train_conf[disc_learning_rate_k]
-        gen_learning_rate = train_conf[gen_learning_rate_k]
+        disc_adam_params = train_conf[disc_adam_params_k]
+        gen_adam_params = train_conf[gen_adam_params_k]
         alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
 
-        self.disc_optimizer.learning_rate = disc_learning_rate
-        self.gen_optimizer.learning_rate = gen_learning_rate
+        self.disc_optimizer.learning_rate = disc_adam_params[0]
+        self.gen_optimizer.learning_rate = gen_adam_params[0]
+
+        self.disc_optimizer.beta_1 = disc_adam_params[1]
+        self.gen_optimizer.beta_1 = gen_adam_params[1]
 
         outputs_folder = cu.create_output_folders("GAN_CVAE",self.run_description)
         tf_summary_writer = cu.tf_summary_writer(outputs_folder)
@@ -243,9 +249,10 @@ class GAN_CVAE():
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
-        ones_batch = alpha_ones_p*tf.ones([self.batch_size,1])
+        alphas_ones_batch = alpha_ones_p*tf.ones([self.batch_size,1])
+        ones_batch = tf.ones([self.batch_size,1])
         zeros_batch = tf.zeros_like(ones_batch)
-        aux_train_data = [ones_batch,zeros_batch]
+        aux_train_data = [alphas_ones_batch,ones_batch,zeros_batch]
 
         for epoch_index in range(num_epochs):
             for fps_batch in dataset:
