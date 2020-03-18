@@ -23,7 +23,7 @@ alphas_losses_k = "alphas_losses_k"
 num_histograms_k = "num_histograms"
 
 disc_adam_params_k = "disc_adam_params"
-gen_adam_params_k = "disc_adam_params"
+gen_adam_params_k = "gen_adam_params"
 
 learning_rate_k = "learning_rate"
 disc_learning_rate_k = "disc_learning_rate"
