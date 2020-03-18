@@ -25,6 +25,7 @@ num_histograms_k = "num_histograms"
 learning_rate_k = "learning_rate"
 disc_learning_rate_k = "disc_learning_rate"
 gen_learning_rate_k = "gen_learning_rate"
+alpha_ones_p_k = "alpha_ones"
 
 cvae_model = "cvae_model"
 gan_model = "gan_model"
@@ -229,6 +230,7 @@ class GAN_CVAE():
         num_images = train_conf[num_images_k]
         disc_learning_rate = train_conf[disc_learning_rate_k]
         gen_learning_rate = train_conf[gen_learning_rate_k]
+        alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
 
         self.disc_optimizer.learning_rate = disc_learning_rate
@@ -241,7 +243,7 @@ class GAN_CVAE():
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
-        ones_batch = tf.ones([self.batch_size,1])
+        ones_batch = alpha_ones_p*tf.ones([self.batch_size,1])
         zeros_batch = tf.zeros_like(ones_batch)
         aux_train_data = [ones_batch,zeros_batch]
 
