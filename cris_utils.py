@@ -21,7 +21,7 @@ def imshow(im):
     t2 = "("+str(np.min(im).round(2))+","+str(np.max(im).round(2))+")"
 
     cmap = "gray"
-    
+
     if(c==1):
         im_p = im.reshape((im.shape[0],im.shape[1]))
         cmap = "gray"
@@ -72,3 +72,25 @@ def create_output_folders(typ,run_description):
 
 def get_time_custom_format():
     return datetime.datetime.now().strftime("%d%b%y--%I-%M-%S-%p")
+
+def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print('\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix), end = printEnd)
+    if iteration == total:
+        print()
+
+def printDict(dicc,header):
+    msg = "Dictionary: {}\n".format(header)
+    for key in dicc:
+        msg += "{}: {}\n".format(key,dicc[key])
+    msg += "\n"
+    return msg
+
+def printList(lista,header):
+    msg = "Lista: {}\n".format(header)
+    for item in lista:
+        msg += "{}\n".format(item)
+    msg += "\n"
+    return msg

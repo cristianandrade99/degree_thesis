@@ -67,8 +67,9 @@ class CVAE():
         self.model_type = CVAE
         self.run_description = run_description
 
-        self.fps_shape = config[fps_shape_k]
-        self.batch_size = config[batch_size_k]
+        self.config = config
+        self.enc_config = enc_config
+        self.dec_config = dec_config
 
         self.encoder = cdb.encoder_module(enc_config)
         self.sampler = cl.Sample()
@@ -107,6 +108,13 @@ class CVAE():
         return actual_losses,gradients
 
     def train(self,train_conf):
+
+        msg_config = cu.printDict(self.config,"Model Configuration")
+        msg_config += cu.printList(self.enc_config[cdb.enc_dec_lys_info_k],"encoder")
+        msg_config += cu.printList(self.dec_config[cdb.enc_dec_lys_info_k],"decoder")
+        msg_config += cu.printDict(train_conf,"Train Configuration")
+        print(msg_config)
+
         print("CVAE training started")
         start_time = time.time()
 
@@ -124,6 +132,8 @@ class CVAE():
         outputs_folder = cu.create_output_folders("CVAE",self.run_description)
         tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
+        config_to_tensorboard(tf_summary_writer,msg_config)
+
         self.create_checkpoint_handlers(outputs_folder)
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
@@ -132,7 +142,7 @@ class CVAE():
             for fps_batch in dataset:
                 actual_losses,gradients = self.train_step(fps_batch,losses_tuple)
 
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.fps_shape,self.encode_decode_fps)
+            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.config[fps_shape_k],self.encode_decode_fps)
             self.data_to_tensorboard(actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
@@ -178,8 +188,10 @@ class GAN_CVAE():
         self.model_type = GAN_CVAE
         self.run_description = run_description
 
-        self.fps_shape = config[fps_shape_k]
-        self.batch_size = config[batch_size_k]
+        self.config = config
+        self.enc_config = enc_config
+        self.dec_config = dec_config
+        self.disc_config = disc_config
 
         self.encoder = cdb.encoder_module(enc_config)
         self.sampler = cl.Sample()
@@ -223,8 +235,16 @@ class GAN_CVAE():
         return [actual_info,actual_gradients]
 
     def train(self,train_conf):
+
         print("GAN CVAE training started")
         start_time = time.time()
+
+        msg_config = cu.printDict(self.config,"Model Configuration")
+        msg_config += cu.printList(self.enc_config[cdb.enc_dec_lys_info_k],"encoder")
+        msg_config += cu.printList(self.dec_config[cdb.enc_dec_lys_info_k],"decoder")
+        msg_config += cu.printList(self.disc_config[cdb.enc_dec_lys_info_k],"discriminator")
+        msg_config += cu.printDict(train_conf,"Train Configuration")
+        print(msg_config)
 
         dataset = train_conf[dataset_k]
         num_epochs = train_conf[num_epochs_k]
@@ -245,12 +265,14 @@ class GAN_CVAE():
         outputs_folder = cu.create_output_folders("GAN_CVAE",self.run_description)
         tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
+        config_to_tensorboard(tf_summary_writer,msg_config)
+
         self.create_checkpoint_handlers(outputs_folder)
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
-        alphas_ones_batch = alpha_ones_p*tf.ones([self.batch_size,1])
-        ones_batch = tf.ones([self.batch_size,1])
+        alphas_ones_batch = alpha_ones_p*tf.ones([self.config[batch_size_k],1])
+        ones_batch = tf.ones([self.config[batch_size_k],1])
         zeros_batch = tf.zeros_like(ones_batch)
         aux_train_data = [alphas_ones_batch,ones_batch,zeros_batch]
 
@@ -259,7 +281,7 @@ class GAN_CVAE():
                 step_info = self.train_step(fps_batch,aux_train_data)
 
             gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.fps_shape,self.encode_decode_fps)
+            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.config[fps_shape_k],self.encode_decode_fps)
             self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
@@ -295,9 +317,9 @@ class GAN():
         self.model_type = GAN
         self.run_description = run_description
 
-        self.fps_shape = config[fps_shape_k]
-        self.batch_size = config[batch_size_k]
-        self.latent_dim = config[latent_dim_k]
+        self.config = config
+        self.gen_config = gen_config
+        self.disc_config = disc_config
 
         self.generator = cdb.decoder_module(gen_config)
         self.discriminator = cdb.encoder_module(disc_config)
@@ -305,14 +327,14 @@ class GAN():
         self.disc_optimizer = tf.keras.optimizers.Adam()
         self.gen_optimizer = tf.keras.optimizers.Adam()
 
-        self.verification_noises = tf.random.normal([num_progress_images,self.latent_dim]).numpy()
+        self.verification_noises = tf.random.normal([num_progress_images,self.config[latent_dim_k]]).numpy()
 
     @tf.function
     def train_step(self,fps_batch,aux_train_data):
         actual_info,actual_gradients = {},{}
 
         with tf.GradientTape() as disc_batch_tape, tf.GradientTape() as disc_generated_tape, tf.GradientTape() as gen_tape:
-            z = tf.random.normal([self.batch_size,self.latent_dim])
+            z = tf.random.normal([self.config[batch_size_k],self.config[latent_dim_k]])
             fps_generated = self.generator(z,training=True)
 
             fps_batch_logits = self.discriminator(fps_batch,training=True)
@@ -341,6 +363,13 @@ class GAN():
         return [actual_info,actual_gradients]
 
     def train(self,train_conf):
+
+        msg_config = cu.printDict(self.config,"Model Configuration")
+        msg_config += cu.printList(self.gen_config[cdb.enc_dec_lys_info_k],"generador")
+        msg_config += cu.printList(self.disc_config[cdb.enc_dec_lys_info_k],"discriminador")
+        msg_config += cu.printDict(train_conf,"Train Configuration")
+        print(msg_config)
+
         print("GAN training started")
         start_time = time.time()
 
@@ -359,11 +388,13 @@ class GAN():
         outputs_folder = cu.create_output_folders("GAN",self.run_description)
         tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
+        config_to_tensorboard(tf_summary_writer,msg_config)
+
         self.create_checkpoint_handlers(outputs_folder)
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
-        ones_batch = tf.ones([self.batch_size,1])
+        ones_batch = tf.ones([self.config[batch_size_k],1])
         zeros_batch = tf.zeros_like(ones_batch)
         aux_train_data = [ones_batch,zeros_batch]
 
@@ -459,6 +490,10 @@ def gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,
                 act_tv = step_info[2][mod_key]
                 for tv,g in zip(act_tv,act_grad):
                     tf.summary.histogram(tv.name+" gradient",g,step=epoch_index)
+
+def config_to_tensorboard(tf_summary_writer,config):
+    with tf_summary_writer.as_default():
+        tf.summary.text("Configuration",config,step=0)
 
 def log_training_end(start_time,num_epochs):
     print("Training total time: "+str(np.round(time.time()-start_time,2)))
