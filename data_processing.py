@@ -4,8 +4,8 @@ import os
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-N_H = 64
-N_W = 64
+N_H = 28
+N_W = 28
 N_C = 1
 N_C_loaded = 1
 
@@ -18,7 +18,7 @@ def load_process_fp_dataset(data_dir_patt,input_shape,batch_size):
     '''data_list = list(ds_data_dirs.as_numpy_iterator())
     print("")
     print("Fingerprints Loaded:",len(data_list),"from:",data_dir_patt[0],"\n")'''
-    
+
     N_H = input_shape[0]
     N_W = input_shape[1]
     N_C = input_shape[2]
