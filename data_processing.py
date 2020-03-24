@@ -47,7 +47,7 @@ def load_verification_images(fps_shape,num_fps):
 
     validation_images_source = "./Img_Validation_images/*.png"
     ds_data_dirs = tf.data.Dataset.list_files(validation_images_source,shuffle=False)
-    ds_data_dirs = ds_data_dirs.map(load_process_images, num_parallel_calls=AUTOTUNE)
+    ds_data_dirs = ds_data_dirs.map(read_orig_images, num_parallel_calls=AUTOTUNE)
     ds_data_dirs = ds_data_dirs.batch(10)
     ds = None
     for v in ds_data_dirs:
