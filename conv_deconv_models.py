@@ -29,94 +29,96 @@ learning_rate_k = "learning_rate"
 disc_learning_rate_k = "disc_learning_rate"
 gen_learning_rate_k = "gen_learning_rate"
 alpha_ones_p_k = "alpha_ones"
+entropy_p_loss_k = "entropy_p_loss"
+entropy_p_acc_k = "entropy_p_acc"
+losses_tuple_k = "losses_tuple"
+
+mean_k = "mean_k"
+logvar_k = "logvar_k"
 
 cvae_model = "cvae_model"
 gan_model = "gan_model"
 
 square_loss = "Mean Squared Error"
+l1_loss = "L1 Loss"
 kl_loss = "KL Divergence"
 ssim_loss = "SSIM Loss"
 tv_loss = "Total Variation Loss"
 cross_loss = "CrossEntropy Loss"
 total_loss_k = "Total Loss"
 
-gan_disc_batch_loss_k = "Discriminator Real Loss"
-gan_disc_processed_loss_k = "Discriminator Fake Loss"
-gan_disc_generated_loss_k = "Discriminator Fake Loss"
-gan_gen_loss_k = "Generator Loss"
+disc_target_loss_k = "Discriminator Target Loss"
+disc_enhanced_loss_k = "Discriminator Enhanced Loss"
+gen_loss_k = "Generator Loss"
 
-gan_disc_batch_accuracy_k = "Discriminator Real Accuracy"
-gan_disc_processed_accurac_k = "Discriminator Fake Accuracy"
+disc_target_accuracy_k = "Discriminator Target Accuracy"
+disc_enhanced_accurac_k = "Discriminator Enhanced Accuracy"
 
-disc_batch_gradients_k = "Discriminator Real Gradients"
-disc_generated_gradients_k = "Discriminator Fake Gradients"
+disc_target_gradients_k = "Discriminator Target Gradients"
+disc_enhanced_gradients_k = "Discriminator Enhanced Gradients"
 gen_gradients_k = "Generator Gradients"
 
 binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 max_checkpoints_to_keep = 2
 num_progress_images = 4
 
-CVAE = "CVAE"
-GAN_CVAE = "GAN_CVAE"
-GAN = "GAN"
+class P2P():
+    def __init__(self,generator,discriminator,config,run_description):
 
-class CVAE():
-    def __init__(self,enc_config,dec_config,config,run_description):
-        super(CVAE,self).__init__()
-
-        self.model_type = CVAE
-        self.run_description = run_description
+        self.generator = generator
+        self.discriminator = discriminator
 
         self.config = config
-        self.enc_config = enc_config
-        self.dec_config = dec_config
+        self.run_description = run_description
 
-        self.encoder = cdb.encoder_module(enc_config)
-        self.sampler = cl.Sample()
-        self.decoder = cdb.decoder_module(dec_config)
-
-        self.optimizer = tf.keras.optimizers.Adam()
+        self.gen_optimizer = tf.keras.optimizers.Adam()
+        self.disc_optimizer = tf.keras.optimizers.Adam()
 
     @tf.function
-    def train_step(self,fps_batch,losses_tuple):
-        losses,alphas = losses_tuple
-        actual_losses = {}
-        total_loss = 0.0
+    def train_step(self,fps_to_enhance,fps_target,train_data):
+        actual_info,actual_gradients,actual_accuracies = {},{},{}
 
-        with tf.GradientTape() as tape:
-            mean,logvar,fps_processed = self.encode_decode_fps(fps_batch,True)
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_target_tape, tf.GradientTape() as disc_enhanced_tape:
+            fps_enhanced = self.generator(fps_to_enhance, training=True)
 
-            for loss,alph in zip(losses,alphas):
-                if loss == square_loss:
-                    actual_losses[square_loss] = alph*tf.reduce_mean(tf.keras.losses.MSE(fps_batch,fps_processed))
-                elif loss == kl_loss:
-                    actual_losses[kl_loss] = alph*tf.reduce_mean(0.5*( tf.square(mean)+tf.exp(logvar)-1-logvar ))
-                elif loss == ssim_loss:
-                    actual_losses[ssim_loss] = alph*tf.reduce_mean( tf.image.ssim(fps_batch,fps_processed,max_val=2.0) )
-                elif loss == tv_loss:
-                    actual_losses[tv_loss] = alph*tf.reduce_mean( tf.image.total_variation(fps_processed) )
-                elif loss == cross_loss:
-                    actual_losses[cross_loss] = alph*binary_crossentropy(fps_batch,fps_processed)
+            fps_target_logits = self.discriminator([fps_to_enhance,fps_target],training=True)
+            fps_enhanced_logits = self.discriminator([fps_to_enhance,fps_enhanced],training=True)
 
-                total_loss += actual_losses[loss]
+            ones_loss,alphas_ones_loss,zeros_loss = train_data[entropy_p_loss_k]
+            ones_acc,alphas_ones_acc,zeros_acc = train_data[entropy_p_acc_k]
+            losses_tuple = train_data[losses_tuple_k]
 
-            actual_losses[total_loss_k] = total_loss
+            actual_losses = calc_losses(losses_tuple,fps_to_enhance,fps_enhanced)
+            actual_losses[gen_loss_k] = binary_crossentropy(ones_loss,fps_enhanced_logits)
+            total_gen_loss = actual_losses[total_loss_k] + actual_losses[gen_loss_k]
 
-        trainable_variables = self.encoder.trainable_variables+self.decoder.trainable_variables
-        gradients = tape.gradient(total_loss,trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients,trainable_variables))
-        return actual_losses,gradients
+            actual_losses[disc_target_loss_k] = binary_crossentropy(alphas_ones_loss,fps_target_logits)
+            actual_losses[disc_enhanced_loss_k] = binary_crossentropy(zeros_loss,fps_enhanced_logits)
+
+            target_probs = tf.reduce_mean( tf.keras.activations.sigmoid(fps_target_logits),[1,2,3] )
+            enhanced_probs = tf.reduce_mean( tf.keras.activations.sigmoid(fps_enhanced_logits),[1,2,3] )
+
+            actual_accuracies[disc_target_accuracy_k] = tf.keras.metrics.binary_accuracy(ones_acc,target_probs)
+            actual_accuracies[disc_enhanced_accurac_k] = tf.keras.metrics.binary_accuracy(zeros_acc,enhanced_probs)
+
+            actual_gradients[gen_gradients_k] = gen_tape.gradient(total_gen_loss,self.generator.trainable_variables)
+            actual_gradients[disc_target_gradients_k] = disc_target_tape.gradient(actual_losses[disc_target_loss_k],self.discriminator.trainable_variables)
+            actual_gradients[disc_enhanced_gradients_k] = disc_enhanced_tape.gradient(actual_losses[disc_enhanced_loss_k],self.discriminator.trainable_variables)
+
+            self.gen_optimizer.apply_gradients(zip(actual_gradients[gen_gradients_k],self.generator.trainable_variables))
+            self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_target_gradients_k],self.discriminator.trainable_variables))
+            self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_enhanced_gradients_k],self.discriminator.trainable_variables))
+
+            return actual_losses,actual_gradients,actual_accuracies
 
     def train(self,train_conf):
 
+        print("P2P training started")
+        start_time = time.time()
+
         msg_config = cu.printDict(self.config,"Model Configuration")
-        msg_config += cu.printList(self.enc_config[cdb.enc_dec_lys_info_k],"encoder")
-        msg_config += cu.printList(self.dec_config[cdb.enc_dec_lys_info_k],"decoder")
         msg_config += cu.printDict(train_conf,"Train Configuration")
         print(msg_config)
-
-        print("CVAE training started")
-        start_time = time.time()
 
         dataset = train_conf[dataset_k]
         num_epochs = train_conf[num_epochs_k]
@@ -124,372 +126,133 @@ class CVAE():
         use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
         checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
         num_images = train_conf[num_images_k]
-        learning_rate = train_conf[learning_rate_k]
-        num_histograms = train_conf[num_histograms_k]
-
-        self.optimizer.learning_rate = learning_rate
-
-        outputs_folder = cu.create_output_folders("CVAE",self.run_description)
-        tf_summary_writer = cu.tf_summary_writer(outputs_folder)
-
-        config_to_tensorboard(tf_summary_writer,msg_config)
-
-        self.create_checkpoint_handlers(outputs_folder)
-        if use_latest_checkpoint:
-            self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
-
-        for epoch_index in range(num_epochs):
-            for fps_batch in dataset:
-                actual_losses,gradients = self.train_step(fps_batch,losses_tuple)
-
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.config[fps_shape_k],self.encode_decode_fps)
-            self.data_to_tensorboard(actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms)
-            self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
-
-        log_training_end(start_time,num_epochs)
-
-    def encode_decode_fps(self,fps_batch,is_training=False):
-        mean_logvar = self.encoder(fps_batch,training=is_training)
-        mean,logvar = tf.split(mean_logvar,2,1)
-        z = self.sampler(mean,logvar)
-        fps_processed = self.decoder(z,training=is_training)
-        return mean,logvar,fps_processed
-
-    def data_to_tensorboard(self,actual_losses,gradients,epoch_index,num_epochs,tf_summary_writer,num_histograms):
-        with tf_summary_writer.as_default():
-            for loss_k in actual_losses:
-                tf.summary.scalar(loss_k,actual_losses[loss_k],step=epoch_index)
-            tf.summary.scalar(total_loss_k,actual_losses[total_loss_k],step=epoch_index)
-
-            n_hist = num_histograms if num_epochs>=num_histograms else num_epochs
-            if( n_hist != 0 and epoch_index%int(num_epochs/n_hist) == 0 ):
-                trainable_variables = self.encoder.trainable_variables+self.decoder.trainable_variables
-                for gradient,trainable_variable in zip(gradients,trainable_variables):
-                    tf.summary.histogram(trainable_variable.name+" gradient",gradient,step=epoch_index)
-
-    def save_checkpoint(self,epoch_index,checkpoints_frecuency):
-        if( epoch_index%checkpoints_frecuency == 0 ):
-            self.checkpoint_manager.save()
-
-    def create_checkpoint_handlers(self,folder_name):
-        self.checkpoint = tf.train.Checkpoint(encoder=self.encoder,
-                                                   sampler=self.sampler,
-                                                   decoder=self.decoder,
-                                                   optimizer=self.optimizer)
-
-        self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                                  folder_name+cu.checkpoints_folder_name,
-                                                                  max_to_keep=max_checkpoints_to_keep)
-
-class GAN_CVAE():
-    def __init__(self,enc_config,dec_config,disc_config,config,run_description):
-        super(GAN_CVAE,self).__init__()
-
-        self.model_type = GAN_CVAE
-        self.run_description = run_description
-
-        self.config = config
-        self.enc_config = enc_config
-        self.dec_config = dec_config
-        self.disc_config = disc_config
-
-        self.encoder = cdb.encoder_module(enc_config)
-        self.sampler = cl.Sample()
-        self.decoder = cdb.decoder_module(dec_config)
-        self.discriminator = cdb.encoder_module(disc_config)
-
-        self.cvae_optimizer = tf.keras.optimizers.Adam()
-
-        self.disc_optimizer = tf.keras.optimizers.Adam()
-        self.gen_optimizer = tf.keras.optimizers.Adam()
-
-    @tf.function
-    def train_step(self,fps_batch,aux_train_data):
-        actual_info,actual_gradients = {},{}
-
-        with tf.GradientTape() as disc_batch_tape, tf.GradientTape() as disc_processed_tape, tf.GradientTape() as gen_tape:
-            _,_,fps_processed = self.encode_decode_fps(fps_batch,True)
-
-            fps_batch_logits = self.discriminator(fps_batch,training=True)
-            fps_processed_logits = self.discriminator(fps_processed,training=True)
-
-            alphas_ones_batch,ones_batch,zeros_batch = aux_train_data[0],aux_train_data[1],aux_train_data[2]
-
-            actual_info[gan_disc_batch_loss_k] = binary_crossentropy(alphas_ones_batch,fps_batch_logits)
-            actual_info[gan_disc_processed_loss_k] = binary_crossentropy(zeros_batch,fps_processed_logits)
-            actual_info[gan_gen_loss_k] = binary_crossentropy(ones_batch,fps_processed_logits)
-
-            actual_info[gan_disc_batch_accuracy_k] = tf.keras.metrics.binary_accuracy(tf.transpose(ones_batch), tf.transpose(tf.keras.activations.sigmoid(fps_batch_logits)) )
-            actual_info[gan_disc_processed_accurac_k] = tf.keras.metrics.binary_accuracy(tf.transpose(zeros_batch), tf.transpose(tf.keras.activations.sigmoid(fps_processed_logits)) )
-
-        actual_gradients[disc_batch_gradients_k] = disc_batch_tape.gradient(actual_info[gan_disc_batch_loss_k],self.discriminator.trainable_variables)
-        actual_gradients[disc_generated_gradients_k] = disc_processed_tape.gradient(actual_info[gan_disc_processed_loss_k],self.discriminator.trainable_variables)
-
-        cvae_trainable_variables = self.encoder.trainable_variables+self.decoder.trainable_variables
-        actual_gradients[gen_gradients_k] = gen_tape.gradient(actual_info[gan_gen_loss_k],cvae_trainable_variables)
-
-        self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_batch_gradients_k],self.discriminator.trainable_variables))
-        self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_generated_gradients_k],self.discriminator.trainable_variables))
-        self.gen_optimizer.apply_gradients(zip(actual_gradients[gen_gradients_k],cvae_trainable_variables))
-
-        return [actual_info,actual_gradients]
-
-    def train(self,train_conf):
-
-        print("GAN CVAE training started")
-        start_time = time.time()
-
-        msg_config = cu.printDict(self.config,"Model Configuration")
-        msg_config += cu.printList(self.enc_config[cdb.enc_dec_lys_info_k],"encoder")
-        msg_config += cu.printList(self.dec_config[cdb.enc_dec_lys_info_k],"decoder")
-        msg_config += cu.printList(self.disc_config[cdb.enc_dec_lys_info_k],"discriminator")
-        msg_config += cu.printDict(train_conf,"Train Configuration")
-        print(msg_config)
-
-        dataset = train_conf[dataset_k]
-        num_epochs = train_conf[num_epochs_k]
-        use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
-        checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
-        num_images = train_conf[num_images_k]
-        disc_adam_params = train_conf[disc_adam_params_k]
         gen_adam_params = train_conf[gen_adam_params_k]
+        disc_adam_params = train_conf[disc_adam_params_k]
         alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
 
-        self.disc_optimizer.learning_rate = disc_adam_params[0]
         self.gen_optimizer.learning_rate = gen_adam_params[0]
+        self.disc_optimizer.learning_rate = disc_adam_params[0]
 
-        self.disc_optimizer.beta_1 = disc_adam_params[1]
         self.gen_optimizer.beta_1 = gen_adam_params[1]
+        self.disc_optimizer.beta_1 = disc_adam_params[1]
 
-        outputs_folder = cu.create_output_folders("GAN_CVAE",self.run_description)
-        tf_summary_writer = cu.tf_summary_writer(outputs_folder)
+        outputs_folder = cu.create_output_folders("P2P",self.run_description)
+        self.tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
-        config_to_tensorboard(tf_summary_writer,msg_config)
-
-        self.create_checkpoint_handlers(outputs_folder)
-        if use_latest_checkpoint:
-            self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
-
-        alphas_ones_batch = alpha_ones_p*tf.ones([self.config[batch_size_k],1])
-        ones_batch = tf.ones([self.config[batch_size_k],1])
-        zeros_batch = tf.zeros_like(ones_batch)
-        aux_train_data = [alphas_ones_batch,ones_batch,zeros_batch]
-
-        for epoch_index in range(num_epochs):
-            for fps_batch in dataset:
-                step_info = self.train_step(fps_batch,aux_train_data)
-
-            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
-            processed_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder,self.config[fps_shape_k],self.encode_decode_fps)
-            self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
-
-        log_training_end(start_time,num_epochs)
-
-    def encode_decode_fps(self,fps_batch,is_training=False):
-        mean_logvar = self.encoder(fps_batch,training=is_training)
-        mean,logvar = tf.split(mean_logvar,2,1)
-        z = self.sampler(mean,logvar)
-        fps_processed = self.decoder(z,training=is_training)
-        return mean,logvar,fps_processed
-
-    def save_checkpoint(self,epoch_index,checkpoints_frecuency):
-        if( epoch_index%checkpoints_frecuency == 0 ):
-            self.checkpoint_manager.save()
-
-    def create_checkpoint_handlers(self,folder_name):
-        self.checkpoint = tf.train.Checkpoint(encoder=self.encoder,
-                                                       sampler=self.sampler,
-                                                       decoder=self.decoder,
-                                                       cvae_optimizer=self.cvae_optimizer,
-                                                       discriminator=self.discriminator,
-                                                       disc_optimizer=self.disc_optimizer,
-                                                       gen_optimizer=self.gen_optimizer)
-
-        self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                                      folder_name+cu.checkpoints_folder_name,
-                                                                      max_to_keep=max_checkpoints_to_keep)
-
-class GAN():
-    def __init__(self,gen_config,disc_config,config,run_description):
-        super(GAN,self).__init__()
-
-        self.model_type = GAN
-        self.run_description = run_description
-
-        self.config = config
-        self.gen_config = gen_config
-        self.disc_config = disc_config
-
-        self.generator = cdb.decoder_module(gen_config)
-        self.discriminator = cdb.encoder_module(disc_config)
-
-        self.disc_optimizer = tf.keras.optimizers.Adam()
-        self.gen_optimizer = tf.keras.optimizers.Adam()
-
-        self.verification_noises = tf.random.normal([num_progress_images,self.config[latent_dim_k]]).numpy()
-
-    @tf.function
-    def train_step(self,fps_batch,aux_train_data):
-        actual_info,actual_gradients = {},{}
-
-        with tf.GradientTape() as disc_batch_tape, tf.GradientTape() as disc_generated_tape, tf.GradientTape() as gen_tape:
-            z = tf.random.normal([self.config[batch_size_k],self.config[latent_dim_k]])
-            fps_generated = self.generator(z,training=True)
-
-            fps_batch_logits = self.discriminator(fps_batch,training=True)
-            fps_generated_logits = self.discriminator(fps_generated,training=True)
-
-            ones_batch = tf.ones_like(fps_batch_logits)
-            zeros_batch = tf.zeros_like(ones_batch)
-
-            ones_batch,zeros_batch = aux_train_data[0],aux_train_data[1]
-
-            actual_info[gan_disc_batch_loss_k] = binary_crossentropy(ones_batch,fps_batch_logits)
-            actual_info[gan_disc_generated_loss_k] = binary_crossentropy(zeros_batch,fps_generated_logits)
-            actual_info[gan_gen_loss_k] = binary_crossentropy(ones_batch,fps_generated_logits)
-
-            actual_info[gan_disc_batch_accuracy_k] = tf.keras.metrics.binary_accuracy(tf.transpose(ones_batch),tf.transpose(tf.keras.activations.sigmoid(fps_batch_logits)) )
-            actual_info[gan_disc_processed_accurac_k] = tf.keras.metrics.binary_accuracy(tf.transpose(zeros_batch),tf.transpose(tf.keras.activations.sigmoid(fps_generated_logits)) )
-
-        actual_gradients[disc_batch_gradients_k] = disc_batch_tape.gradient(actual_info[gan_disc_batch_loss_k],self.discriminator.trainable_variables)
-        actual_gradients[disc_generated_gradients_k] = disc_generated_tape.gradient(actual_info[gan_disc_generated_loss_k],self.discriminator.trainable_variables)
-        actual_gradients[gen_gradients_k] = gen_tape.gradient(actual_info[gan_gen_loss_k],self.generator.trainable_variables)
-
-        self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_batch_gradients_k],self.discriminator.trainable_variables))
-        self.disc_optimizer.apply_gradients(zip(actual_gradients[disc_generated_gradients_k],self.discriminator.trainable_variables))
-        self.gen_optimizer.apply_gradients(zip(actual_gradients[gen_gradients_k],self.generator.trainable_variables))
-
-        return [actual_info,actual_gradients]
-
-    def train(self,train_conf):
-
-        msg_config = cu.printDict(self.config,"Model Configuration")
-        msg_config += cu.printList(self.gen_config[cdb.enc_dec_lys_info_k],"generador")
-        msg_config += cu.printList(self.disc_config[cdb.enc_dec_lys_info_k],"discriminador")
-        msg_config += cu.printDict(train_conf,"Train Configuration")
-        print(msg_config)
-
-        print("GAN training started")
-        start_time = time.time()
-
-        dataset = train_conf[dataset_k]
-        num_epochs = train_conf[num_epochs_k]
-        use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
-        checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
-        num_images = train_conf[num_images_k]
-        disc_learning_rate = train_conf[disc_learning_rate_k]
-        gen_learning_rate = train_conf[gen_learning_rate_k]
-        num_histograms = train_conf[num_histograms_k]
-
-        self.disc_optimizer.learning_rate = disc_learning_rate
-        self.gen_optimizer.learning_rate = gen_learning_rate
-
-        outputs_folder = cu.create_output_folders("GAN",self.run_description)
-        tf_summary_writer = cu.tf_summary_writer(outputs_folder)
-
-        config_to_tensorboard(tf_summary_writer,msg_config)
+        config_to_tensorboard(self.tf_summary_writer,msg_config)
 
         self.create_checkpoint_handlers(outputs_folder)
         if use_latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
-        ones_batch = tf.ones([self.config[batch_size_k],1])
-        zeros_batch = tf.zeros_like(ones_batch)
-        aux_train_data = [ones_batch,zeros_batch]
+        train_data = {}
+        train_data[entropy_p_loss_k] = entropy_p_vectors([self.config[batch_size_k],30,30,1],alpha_ones_p)
+        train_data[entropy_p_acc_k] = entropy_p_vectors([self.config[batch_size_k],],alpha_ones_p)
+        train_data[losses_tuple_k] = losses_tuple
 
         for epoch_index in range(num_epochs):
-            for fps_batch in dataset:
-                step_info = self.train_step(fps_batch,aux_train_data)
+            for fps_to_enhance in dataset:
+                train_step_info = self.train_step(fps_to_enhance,fps_to_enhance,train_data)
 
-            gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self)
-            self.generated_fps_progress_to_folder(epoch_index+1,num_images,num_epochs,outputs_folder)
-            self.save_checkpoint(epoch_index+1,checkpoints_frecuency)
+            self.p2p_data_to_tensorboard(train_step_info,epoch_index,num_epochs,num_histograms)
+            self.enhanced_fps_progress_to_folder(self.config[fps_shape_k],num_images,outputs_folder,epoch_index,num_epochs)
+            self.save_checkpoint(epoch_index,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
 
-    def save_checkpoint(self,epoch_index,checkpoints_frecuency):
-        if( epoch_index%checkpoints_frecuency == 0 ):
-            self.checkpoint_manager.save()
-
     def create_checkpoint_handlers(self,folder_name):
-        self.checkpoint = tf.train.Checkpoint(decoder=self.generator,
-                                                  gen_optimizer=self.gen_optimizer,
-                                                  discriminator=self.discriminator,
-                                                  disc_optimizer=self.disc_optimizer)
+        self.checkpoint = tf.train.Checkpoint(generator=self.generator,
+                                              discriminator=self.discriminator,
+                                              gen_optimizer=self.gen_optimizer,
+                                              disc_optimizer=self.disc_optimizer)
 
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                                 folder_name+cu.checkpoints_folder_name,
-                                                                 max_to_keep=max_checkpoints_to_keep)
+                                                             folder_name+cu.checkpoints_folder_name,
+                                                             max_to_keep=max_checkpoints_to_keep)
 
-    def generated_fps_progress_to_folder(self,epoch_index,num_images,num_epochs,outputs_folder):
+    def p2p_data_to_tensorboard(self,train_step_info,epoch_index,num_epochs,num_histograms):
+        actual_losses,actual_gradients,actual_accuracies = train_step_info
 
+        with self.tf_summary_writer.as_default():
+
+            for key in actual_losses:
+                tf.summary.scalar(key,tf.squeeze(actual_losses[key]),step=epoch_index)
+
+            for key in actual_accuracies:
+                tf.summary.scalar(key,tf.squeeze(actual_accuracies[key]),step=epoch_index)
+
+            n_hist = num_histograms if num_epochs>=num_histograms else num_epochs
+            if( n_hist != 0 and epoch_index%int(num_epochs/n_hist) == 0 ):
+
+                for tv,g in zip(self.generator.trainable_variables,actual_gradients[gen_gradients_k]):
+                    tf.summary.histogram(tv.name+" gradient",g,step=epoch_index)
+
+                for tv,g in zip(self.discriminator.trainable_variables,actual_gradients[disc_target_gradients_k]):
+                    tf.summary.histogram(tv.name+" target gradient",g,step=epoch_index)
+
+                for tv,g in zip(self.discriminator.trainable_variables,actual_gradients[disc_enhanced_gradients_k]):
+                    tf.summary.histogram(tv.name+" enhanced gradient",g,step=epoch_index)
+
+    def enhanced_fps_progress_to_folder(self,fps_shape,num_images,outputs_folder,epoch_index,num_epochs):
         n_images = num_images if num_epochs>=num_images else num_epochs
-        if( epoch_index%int(num_epochs/n_images) == 0 ):
-            z = self.verification_noises
-            fps_generated = self.generator(z,training=False).numpy()
 
-            fps_generated_shapes = np.shape(fps_generated)
-            if fps_generated_shapes[3] == 1:
-                fps_generated = np.reshape(fps_generated,(fps_generated_shapes[0],fps_generated_shapes[1],fps_generated_shapes[2]))
+        if( n_images != 0 and epoch_index%int(num_epochs/n_images) == 0 ):
+            fps_to_enhance = dp.load_verification_images(fps_shape,num_progress_images).numpy()
+            fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
 
-            fig,axs = plt.subplots(num_progress_images,1,figsize=(5,5),constrained_layout=True)
-            fig.suptitle("Epoch: {}".format(epoch_index))
+            save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index)
 
-            for i in range(num_progress_images):
-                axs[i].imshow(fps_generated[i,:],cmap="gray")
-                axs[i].axis('off')
-
-            plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
-            plt.close(fig)
+    def save_checkpoint(self,epoch_index,checkpoints_frecuency):
+        if( (epoch_index+1)%checkpoints_frecuency == 0 ):
+            self.checkpoint_manager.save()
 
 # GLOBAL METHODS
-def processed_fps_progress_to_folder(epoch_index,num_images,num_epochs,outputs_folder,fps_shape,encode_decode_fps):
+def calc_losses(losses_tuple,batch_1,batch_2,dicc_info=None):
+    losses,alphas = losses_tuple
+    actual_losses = {}
+    total_loss = 0.0
+    for loss,alph in zip(losses,alphas):
+        if loss == square_loss:
+            actual_losses[square_loss] = alph*tf.reduce_mean(tf.keras.losses.MSE(batch_1,batch_2))
+        elif loss == kl_loss:
+            actual_losses[kl_loss] = alph*tf.reduce_mean(0.5*( tf.square(dicc_info[mean_k])+tf.exp(dicc_info[logvar_k])-1-logvar ))
+        elif loss == ssim_loss:
+            actual_losses[ssim_loss] = alph*tf.reduce_mean( tf.image.ssim(batch_1,batch_2,max_val=2.0) )
+        elif loss == tv_loss:
+            actual_losses[tv_loss] = alph*tf.reduce_mean( tf.image.total_variation(batch_2) )
+        elif loss == cross_loss:
+            actual_losses[cross_loss] = alph*binary_crossentropy((batch_1+1)/2,(batch_2+1)/2)
+        elif loss == l1_loss:
+            actual_losses[l1_loss] = alph*tf.reduce_mean( tf.abs(batch_2-batch_1) )
 
-    n_images = num_images if num_epochs>=num_images else num_epochs
-    if( epoch_index%int(num_epochs/n_images) == 0 ):
-        fps_batch = dp.load_verification_images(fps_shape,num_progress_images).numpy()
-        _,_,fps_processed = encode_decode_fps(fps_batch)
-        fps_processed = fps_processed.numpy()
+        total_loss += actual_losses[loss]
 
-        fps_batch_shapes = np.shape(fps_batch)
-        if fps_batch_shapes[3] == 1:
-            fps_batch = np.reshape(fps_batch,(fps_batch_shapes[0],fps_batch_shapes[1],fps_batch_shapes[2]))
+    actual_losses[total_loss_k] = total_loss
 
-        fps_processed_shapes = np.shape(fps_processed)
-        if fps_processed_shapes[3] == 1:
-            fps_processed = np.reshape(fps_processed,(fps_processed_shapes[0],fps_processed_shapes[1],fps_processed_shapes[2]))
+    return actual_losses
 
-        fig,axs = plt.subplots(num_progress_images,2,figsize=(5,5),constrained_layout=True)
-        fig.suptitle("Epoch: {}".format(epoch_index))
+def save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index):
 
-        for i in range(num_progress_images):
-            axs[i,0].imshow(fps_batch[i,:],cmap="gray")
-            axs[i,1].imshow(fps_processed[i,:],cmap="gray")
-            axs[i,0].axis('off')
-            axs[i,1].axis('off')
+    fps_to_enhance_shapes = np.shape(fps_to_enhance)
+    if fps_to_enhance_shapes[3] == 1:
+        fps_to_enhance = fps_to_enhance.reshape(fps_to_enhance_shapes[0],fps_to_enhance_shapes[1],fps_to_enhance_shapes[2])
 
-        plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
-        plt.close(fig)
+    fps_enhanced_shapes = np.shape(fps_enhanced)
+    if fps_enhanced_shapes[3] == 1:
+        fps_enhanced = fps_enhanced.reshape(fps_enhanced_shapes[0],fps_enhanced_shapes[1],fps_enhanced_shapes[2])
 
-def gans_data_to_tensorboard(step_info,epoch_index,num_epochs,tf_summary_writer,num_histograms,self):
-    with tf_summary_writer.as_default():
-        for key in step_info[0]:
-            tf.summary.scalar(key,tf.squeeze(step_info[0][key]),step=epoch_index)
+    fig,axs = plt.subplots(num_progress_images,2,figsize=(8,8),constrained_layout=True)
+    fig.suptitle("Epoch: {}".format(epoch_index))
 
-        n_hist = num_histograms if num_epochs>=num_histograms else num_epochs
-        if( n_hist != 0 and epoch_index%int(num_epochs/n_hist) == 0 ):
-            trainable_variables = {}
-            trainable_variables[disc_batch_gradients_k] = self.discriminator.trainable_variables
-            trainable_variables[disc_generated_gradients_k] = self.discriminator.trainable_variables
-            trainable_variables[gen_gradients_k] = self.encoder.trainable_variables+self.decoder.trainable_variables if self.model_type==GAN_CVAE else self.generator.trainable_variables
-            step_info.append(trainable_variables)
+    for i in range(num_progress_images):
+        axs[i,0].imshow(fps_to_enhance[i,:],cmap="gray")
+        axs[i,1].imshow(fps_enhanced[i,:],cmap="gray")
+        axs[i,0].axis('off')
+        axs[i,1].axis('off')
 
-            for mod_key in step_info[1]:
-                act_grad = step_info[1][mod_key]
-                act_tv = step_info[2][mod_key]
-                for tv,g in zip(act_tv,act_grad):
-                    tf.summary.histogram(tv.name+" gradient",g,step=epoch_index)
+    plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
+    plt.close(fig)
 
 def config_to_tensorboard(tf_summary_writer,config):
     with tf_summary_writer.as_default():
@@ -499,3 +262,9 @@ def log_training_end(start_time,num_epochs):
     print("Training total time: "+str(np.round(time.time()-start_time,2)))
     print("Average time per epoch: "+str(np.round((time.time()-start_time)/num_epochs,2)))
     print("Training finished")
+
+def entropy_p_vectors(size,alpha_ones_p):
+    ones = tf.ones(size)
+    alphas_ones = alpha_ones_p*tf.ones_like(ones)
+    zeros = tf.zeros_like(ones)
+    return ones,alphas_ones,zeros
