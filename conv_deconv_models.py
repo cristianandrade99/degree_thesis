@@ -13,7 +13,6 @@ latent_dim_k = "latent_dim"
 batch_size_k = "batch_size"
 data_dir_patt_k = "data_dir_patt"
 
-dataset_k = "dataset"
 use_latest_checkpoint_k = "use_latest_checkpoint"
 num_epochs_k = "num_epochs_k"
 checkpoints_frecuency_k = "checkpoints_frecuency"
@@ -21,6 +20,8 @@ num_images_k = "num_images"
 types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
 num_histograms_k = "num_histograms"
+data_info_k = "data_info"
+data_percent_k = "data_percent"
 
 disc_adam_params_k = "disc_adam_params"
 gen_adam_params_k = "gen_adam_params"
@@ -120,7 +121,6 @@ class P2P():
         msg_config += cu.printDict(train_conf,"Train Configuration")
         print(msg_config)
 
-        dataset = train_conf[dataset_k]
         num_epochs = train_conf[num_epochs_k]
         losses_tuple = train_conf[types_losses_k],train_conf[alphas_losses_k]
         use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
@@ -130,6 +130,8 @@ class P2P():
         disc_adam_params = train_conf[disc_adam_params_k]
         alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
+        dataset,num_files = train_conf[data_info_k]
+        data_percent = train_conf[data_percent_k]
 
         self.gen_optimizer.learning_rate = gen_adam_params[0]
         self.disc_optimizer.learning_rate = disc_adam_params[0]
@@ -151,13 +153,14 @@ class P2P():
         train_data[entropy_p_acc_k] = entropy_p_vectors([self.config[batch_size_k],],alpha_ones_p)
         train_data[losses_tuple_k] = losses_tuple
 
+        num_batches = int( (num_files*data_percent)/(100*self.config[batch_size_k]) )
         for epoch_index in range(num_epochs):
-            for fps_to_enhance in dataset:
-                train_step_info = self.train_step(fps_to_enhance,fps_to_enhance,train_data)
+            for fps_to_enhance,fps_target in dataset.take(num_batches):
+                train_step_info = self.train_step(fps_to_enhance,fps_target,train_data)
 
             self.p2p_data_to_tensorboard(train_step_info,epoch_index,num_epochs,num_histograms)
             self.enhanced_fps_progress_to_folder(self.config[fps_shape_k],num_images,outputs_folder,epoch_index,num_epochs)
-            self.save_checkpoint(epoch_index,checkpoints_frecuency)
+            self.save_checkpoint(epoch_index,num_epochs,checkpoints_frecuency)
 
         log_training_end(start_time,num_epochs)
 
@@ -198,13 +201,14 @@ class P2P():
         n_images = num_images if num_epochs>=num_images else num_epochs
 
         if( n_images != 0 and epoch_index%int(num_epochs/n_images) == 0 ):
-            fps_to_enhance = dp.load_verification_images(fps_shape,num_progress_images).numpy()
+            fps_to_enhance = dp.load_verification_images(fps_shape,num_progress_images)
             fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
 
             save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index)
 
-    def save_checkpoint(self,epoch_index,checkpoints_frecuency):
-        if( (epoch_index+1)%checkpoints_frecuency == 0 ):
+    def save_checkpoint(self,epoch_index,num_epochs,checkpoints_frecuency):
+        check_frec = checkpoints_frecuency if num_epochs >= checkpoints_frecuency else 2
+        if( check_frec != 0 and (epoch_index+1)%check_frec == 0 ):
             self.checkpoint_manager.save()
 
 # GLOBAL METHODS

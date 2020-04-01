@@ -94,3 +94,6 @@ def printList(lista,header):
         msg += "{}\n".format(item)
     msg += "\n"
     return msg
+
+def calc_unit_to_range(rand,y0,y1):
+    return y0 + rand*(y1+1-y0)
