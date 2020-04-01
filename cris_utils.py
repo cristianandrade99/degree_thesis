@@ -4,6 +4,7 @@ import numpy as np
 import datetime
 import shutil
 import glob
+import sys
 import os
 
 performance_imgs_folder_name = "Img_Performance_Images"
@@ -97,3 +98,9 @@ def printList(lista,header):
 
 def calc_unit_to_range(rand,y0,y1):
     return y0 + rand*(y1+1-y0)
+
+def modify_path():
+    sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python37.zip')
+    sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7')
+    sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7/lib-dynload')
+    sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7/site-packages')
