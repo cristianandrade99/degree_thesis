@@ -27,6 +27,7 @@ def load_process_fp_dataset(config):
     dir,patt = config[md.data_dir_patt_k][0],config[md.data_dir_patt_k][1]
     patterns,num_files = list_folder_patterns(dir,patt)
     ds_data_dirs_orig = tf.data.Dataset.list_files(patterns,shuffle=True)
+    ds_data_dirs_orig = ds_data_dirs_orig.shuffle(buffer_size=4096,reshuffle_each_iteration=False)
 
     '''data_list = list(ds_data_dirs_orig.as_numpy_iterator())
     print("")
@@ -49,7 +50,6 @@ def load_process_fp_dataset(config):
     if config[make_elipses_k]:
         ds_data_dirs = ds_data_dirs.map(elipse_tf, num_parallel_calls=AUTOTUNE)
 
-    ds_data_dirs = ds_data_dirs.shuffle(buffer_size=4096,reshuffle_each_iteration=True)
     ds_data_dirs = ds_data_dirs.batch(config[md.batch_size_k],True)
     ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
 
