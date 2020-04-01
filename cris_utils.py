@@ -1,3 +1,5 @@
+import sys
+
 sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python37.zip')
 sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7')
 sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7/lib-dynload')
@@ -9,7 +11,6 @@ import numpy as np
 import datetime
 import shutil
 import glob
-import sys
 import os
 
 performance_imgs_folder_name = "Img_Performance_Images"
