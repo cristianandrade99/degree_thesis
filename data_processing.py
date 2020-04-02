@@ -52,6 +52,7 @@ def load_process_fp_dataset(config):
 
     ds_data_dirs = ds_data_dirs.batch(config[md.batch_size_k],True)
     ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
+    ds_data_dirs = ds_data_dirs.cache("./{}/cache.temp".format(cu.Output_data_folder_name))
 
     '''data_list_batched = list(ds_data_dirs.as_numpy_iterator())
     print("Batches Created:",len(data_list_batched))

@@ -114,13 +114,6 @@ class P2P():
 
     def train(self,train_conf):
 
-        print("P2P training started")
-        start_time = time.time()
-
-        msg_config = cu.printDict(self.config,"Model Configuration")
-        msg_config += cu.printDict(train_conf,"Train Configuration")
-        print(msg_config)
-
         num_epochs = train_conf[num_epochs_k]
         losses_tuple = train_conf[types_losses_k],train_conf[alphas_losses_k]
         use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
@@ -133,14 +126,21 @@ class P2P():
         dataset,num_files = train_conf[data_info_k]
         data_percent = train_conf[data_percent_k]
 
+        outputs_folder = cu.create_output_folders("P2P",self.run_description)
+        self.tf_summary_writer = cu.tf_summary_writer(outputs_folder)
+
+        cu.cu_print("P2P training started")
+        start_time = time.time()
+
+        msg_config = cu.printDict(self.config,"Model Configuration")
+        msg_config += cu.printDict(train_conf,"Train Configuration")
+        cu.cu_print(msg_config)
+
         self.gen_optimizer.learning_rate = gen_adam_params[0]
         self.disc_optimizer.learning_rate = disc_adam_params[0]
 
         self.gen_optimizer.beta_1 = gen_adam_params[1]
         self.disc_optimizer.beta_1 = disc_adam_params[1]
-
-        outputs_folder = cu.create_output_folders("P2P",self.run_description)
-        self.tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
         config_to_tensorboard(self.tf_summary_writer,msg_config)
 
@@ -263,9 +263,10 @@ def config_to_tensorboard(tf_summary_writer,config):
         tf.summary.text("Configuration",config,step=0)
 
 def log_training_end(start_time,num_epochs):
-    print("Training total time: "+str(np.round(time.time()-start_time,2)))
-    print("Average time per epoch: "+str(np.round((time.time()-start_time)/num_epochs,2)))
-    print("Training finished")
+    cu.cu_print("Training total time: "+str(np.round(time.time()-start_time,2)))
+    cu.cu_print("Average time per epoch: "+str(np.round((time.time()-start_time)/num_epochs,2)))
+    cu.cu_print("Training finished")
+    cu.close_log()
 
 def entropy_p_vectors(size,alpha_ones_p):
     ones = tf.ones(size)

@@ -13,9 +13,12 @@ import shutil
 import glob
 import os
 
+Output_data_folder_name = "Output_data"
 performance_imgs_folder_name = "Img_Performance_Images"
 tensorboard_folder_name = "tf_Tensorboard_logs"
 checkpoints_folder_name = "tf_Checkpoints"
+
+output_log_file = None
 
 def imshow(im):
 
@@ -71,10 +74,13 @@ def tf_summary_writer(folder_name):
     return tf.summary.create_file_writer(folder_name+tensorboard_folder_name)
 
 def create_output_folders(typ,run_description):
-    outputs_folder = "./Output_data/"+typ+"_"+get_time_custom_format()+"_"+run_description+"/"
+    global Output_data_folder_name,performance_imgs_folder_name,tensorboard_folder_name,checkpoints_folder_name,output_log_file
+    outputs_folder = "./{}/{}_{}_{}/".format(Output_data_folder_name,get_time_custom_format(),typ,run_description)
     os.makedirs(outputs_folder+performance_imgs_folder_name)
     os.makedirs(outputs_folder+tensorboard_folder_name)
     os.makedirs(outputs_folder+checkpoints_folder_name)
+    output_log_file = open("{}{}".format(outputs_folder,"output_log.txt"),"w+")
+
     return outputs_folder
 
 def get_time_custom_format():
@@ -104,3 +110,10 @@ def printList(lista,header):
 
 def calc_unit_to_range(rand,y0,y1):
     return y0 + rand*(y1+1-y0)
+
+def cu_print(msg):
+    print(msg)
+    output_log_file.write("{}{}".format(msg,"\n"))
+
+def close_log():
+    output_log_file.close()
