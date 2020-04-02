@@ -126,7 +126,7 @@ class P2P():
         dataset,num_files = train_conf[data_info_k]
         data_percent = train_conf[data_percent_k]
 
-        outputs_folder = cu.create_output_folders("P2P",self.run_description)
+        outputs_folder = cu.output_folders()
         self.tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
         cu.cu_print("P2P training started")
@@ -171,7 +171,7 @@ class P2P():
                                               disc_optimizer=self.disc_optimizer)
 
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                             folder_name+cu.checkpoints_folder_name,
+                                                             "{}/{}".format(folder_name,cu.checkpoints_folder_name),
                                                              max_to_keep=max_checkpoints_to_keep)
 
     def p2p_data_to_tensorboard(self,train_step_info,epoch_index,num_epochs,num_histograms):
@@ -255,7 +255,7 @@ def save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index):
         axs[i,0].axis('off')
         axs[i,1].axis('off')
 
-    plt.savefig(outputs_folder+cu.performance_imgs_folder_name+"/fp_at_epoch_{}.png".format(epoch_index),bbox_inches='tight')
+    plt.savefig("{}/{}/fp_at_epoch_{}".format(outputs_folder,cu.performance_imgs_folder_name,epoch_index),bbox_inches='tight')
     plt.close(fig)
 
 def config_to_tensorboard(tf_summary_writer,config):

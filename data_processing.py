@@ -13,6 +13,9 @@ mirror_data_k = "mirror_data"
 make_elipses_k = "make_elipses"
 elipse_conf_k = "elipse_conf"
 
+model_k = "model"
+run_desc_k = "run_desc"
+
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 N_H = 28
@@ -23,6 +26,8 @@ elipse_conf = []
 
 def load_process_fp_dataset(config):
     global N_H,N_W,N_C,elipse_conf
+
+    outputs_folder = cu.create_output_folders(config[model_k],config[run_desc_k])
 
     dir,patt = config[md.data_dir_patt_k][0],config[md.data_dir_patt_k][1]
     patterns,num_files = list_folder_patterns(dir,patt)
@@ -52,7 +57,7 @@ def load_process_fp_dataset(config):
 
     ds_data_dirs = ds_data_dirs.batch(config[md.batch_size_k],True)
     ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
-    ds_data_dirs = ds_data_dirs.cache("./{}/cache.temp".format(cu.Output_data_folder_name))
+    #ds_data_dirs = ds_data_dirs.cache("./{}/cache.temp".format(outputs_folder))
 
     '''data_list_batched = list(ds_data_dirs.as_numpy_iterator())
     print("Batches Created:",len(data_list_batched))
