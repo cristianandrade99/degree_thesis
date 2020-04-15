@@ -21,7 +21,6 @@ types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
 num_histograms_k = "num_histograms"
 data_info_k = "data_info"
-data_percent_k = "data_percent"
 
 disc_adam_params_k = "disc_adam_params"
 gen_adam_params_k = "gen_adam_params"
@@ -123,10 +122,9 @@ class P2P():
         disc_adam_params = train_conf[disc_adam_params_k]
         alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
-        dataset,num_files = train_conf[data_info_k]
-        data_percent = train_conf[data_percent_k]
+        dataset = train_conf[data_info_k]
 
-        outputs_folder = cu.output_folders()
+        outputs_folder = cu.outputs_folder
         self.tf_summary_writer = cu.tf_summary_writer(outputs_folder)
 
         cu.cu_print("P2P training started")
@@ -153,9 +151,8 @@ class P2P():
         train_data[entropy_p_acc_k] = entropy_p_vectors([self.config[batch_size_k],],alpha_ones_p)
         train_data[losses_tuple_k] = losses_tuple
 
-        num_batches = int( (num_files*data_percent)/(100*self.config[batch_size_k]) )
         for epoch_index in range(num_epochs):
-            for fps_to_enhance,fps_target in dataset.take(num_batches):
+            for fps_to_enhance,fps_target in dataset:
                 train_step_info = self.train_step(fps_to_enhance,fps_target,train_data)
 
             self.p2p_data_to_tensorboard(train_step_info,epoch_index,num_epochs,num_histograms)
@@ -171,7 +168,7 @@ class P2P():
                                               disc_optimizer=self.disc_optimizer)
 
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                             "{}/{}".format(folder_name,cu.checkpoints_folder_name),
+                                                             "./{}/{}".format(folder_name,cu.checkpoints_folder_name),
                                                              max_to_keep=max_checkpoints_to_keep)
 
     def p2p_data_to_tensorboard(self,train_step_info,epoch_index,num_epochs,num_histograms):
@@ -201,10 +198,9 @@ class P2P():
         n_images = num_images if num_epochs>=num_images else num_epochs
 
         if( n_images != 0 and epoch_index%int(num_epochs/n_images) == 0 ):
-            fps_to_enhance = dp.load_verification_images(fps_shape,num_progress_images)
+            fps_to_enhance,fps_target = dp.load_verification_images(fps_shape,num_progress_images)
             fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
-
-            save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index)
+            save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,outputs_folder,epoch_index)
 
     def save_checkpoint(self,epoch_index,num_epochs,checkpoints_frecuency):
         check_frec = checkpoints_frecuency if num_epochs >= checkpoints_frecuency else 2
@@ -236,26 +232,24 @@ def calc_losses(losses_tuple,batch_1,batch_2,dicc_info=None):
 
     return actual_losses
 
-def save_enhanced_fps(fps_to_enhance,fps_enhanced,outputs_folder,epoch_index):
+def save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,outputs_folder,epoch_index):
 
-    fps_to_enhance_shapes = np.shape(fps_to_enhance)
-    if fps_to_enhance_shapes[3] == 1:
-        fps_to_enhance = fps_to_enhance.reshape(fps_to_enhance_shapes[0],fps_to_enhance_shapes[1],fps_to_enhance_shapes[2])
+    if np.shape(fps_to_enhance)[3] == 1:
+        fps_to_enhance = np.squeeze(fps_to_enhance,axis=3)
+        fps_enhanced = np.squeeze(fps_enhanced,axis=3)
+        fps_target = np.squeeze(fps_target,axis=3)
 
-    fps_enhanced_shapes = np.shape(fps_enhanced)
-    if fps_enhanced_shapes[3] == 1:
-        fps_enhanced = fps_enhanced.reshape(fps_enhanced_shapes[0],fps_enhanced_shapes[1],fps_enhanced_shapes[2])
-
-    fig,axs = plt.subplots(num_progress_images,2,figsize=(8,8),constrained_layout=True)
+    fig,axs = plt.subplots(num_progress_images,1,figsize=(20,20),constrained_layout=True)
     fig.suptitle("Epoch: {}".format(epoch_index))
 
+    min,max = np.min(fps_enhanced),np.max(fps_enhanced)
+    fps_enhanced_m = -1 + 2*(fps_enhanced-min)/(max-min)
+    fps = np.concatenate((fps_to_enhance,fps_enhanced_m,fps_target),2)
     for i in range(num_progress_images):
-        axs[i,0].imshow(fps_to_enhance[i,:],cmap="gray")
-        axs[i,1].imshow(fps_enhanced[i,:],cmap="gray")
-        axs[i,0].axis('off')
-        axs[i,1].axis('off')
+        axs[i].imshow(fps[i,:],cmap="gray")
+        axs[i].axis('off')
 
-    plt.savefig("{}/{}/fp_at_epoch_{}".format(outputs_folder,cu.performance_imgs_folder_name,epoch_index),bbox_inches='tight')
+    plt.savefig("./{}/{}/fp_at_epoch_{}".format(outputs_folder,cu.performance_imgs_folder_name,epoch_index),bbox_inches='tight')
     plt.close(fig)
 
 def config_to_tensorboard(tf_summary_writer,config):

@@ -14,10 +14,11 @@ import glob
 import os
 
 outputs_folder = ""
-Output_data_folder_name = "Output_data"
+output_data_folder_name = "Output_data"
 performance_imgs_folder_name = "Img_Performance_Images"
 tensorboard_folder_name = "tf_Tensorboard_logs"
 checkpoints_folder_name = "tf_Checkpoints"
+cache_folder_name = "tf_Cache"
 
 output_log_file = None
 
@@ -72,20 +73,16 @@ def delete_All(directory):
         print("\n","Deleted Files")
 
 def tf_summary_writer(folder_name):
-    return tf.summary.create_file_writer("{}/{}".format(folder_name,tensorboard_folder_name))
+    return tf.summary.create_file_writer("./{}/{}".format(folder_name,tensorboard_folder_name))
 
 def create_output_folders(typ,run_description):
-    global outputs_folder,Output_data_folder_name,performance_imgs_folder_name,tensorboard_folder_name,checkpoints_folder_name,output_log_file
-    outputs_folder = "./{}/{}_{}_{}".format(Output_data_folder_name,get_time_custom_format(),typ,run_description)
-    os.makedirs("{}/{}".format(outputs_folder,performance_imgs_folder_name))
-    os.makedirs("{}/{}".format(outputs_folder,tensorboard_folder_name))
-    os.makedirs("{}/{}".format(outputs_folder,checkpoints_folder_name))
-    output_log_file = open("{}/{}".format(outputs_folder,"output_log.txt"),"w+")
-
-    return outputs_folder
-
-def output_folders():
-    global outputs_folder
+    global outputs_folder,output_data_folder_name,performance_imgs_folder_name,tensorboard_folder_name,checkpoints_folder_name,output_log_file
+    outputs_folder = "{}/{}_{}_{}".format(output_data_folder_name,get_time_custom_format(),typ,run_description)
+    os.makedirs("./{}/{}".format(outputs_folder,performance_imgs_folder_name))
+    os.makedirs("./{}/{}".format(outputs_folder,tensorboard_folder_name))
+    os.makedirs("./{}/{}".format(outputs_folder,checkpoints_folder_name))
+    os.makedirs("./{}/{}".format(outputs_folder,cache_folder_name))
+    output_log_file = open("./{}/{}".format(outputs_folder,"output_log.txt"),"w+")
     return outputs_folder
 
 def get_time_custom_format():

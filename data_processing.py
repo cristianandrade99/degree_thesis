@@ -4,66 +4,63 @@ import pathlib as pl
 import numpy as np
 import cv2
 import os
-import matplotlib.pyplot as plt
 
 import conv_deconv_models as md
 import cris_utils as cu
 
-mirror_data_k = "mirror_data"
-make_elipses_k = "make_elipses"
-elipse_conf_k = "elipse_conf"
+img_validation_images_folder = "Img_Validation_images"
+
+func_keys_k = "func_keys"
+func_confs_k = "func_confs"
+
+make_elipses_k = "func_make_elipses"
+blur_image_k = "func_blur_image"
 
 model_k = "model"
 run_desc_k = "run_desc"
+data_percent_k = "data_percent"
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 N_H = 28
 N_W = 28
 N_C = 1
-N_C_loaded = 1
+
 elipse_conf = []
+blur_conf = []
 
 def load_process_fp_dataset(config):
     global N_H,N_W,N_C,elipse_conf
 
-    outputs_folder = cu.create_output_folders(config[model_k],config[run_desc_k])
-
+    batch_size = config[md.batch_size_k]
     dir,patt = config[md.data_dir_patt_k][0],config[md.data_dir_patt_k][1]
-    patterns,num_files = list_folder_patterns(dir,patt)
-    ds_data_dirs_orig = tf.data.Dataset.list_files(patterns,shuffle=True)
-    ds_data_dirs_orig = ds_data_dirs_orig.shuffle(buffer_size=4096,reshuffle_each_iteration=False)
-
-    '''data_list = list(ds_data_dirs_orig.as_numpy_iterator())
-    print("")
-    print("Fingerprints Loaded:",len(data_list),"from:",dir,"\n")'''
-
+    percent = config[data_percent_k]
     input_shape = config[md.fps_shape_k]
+    func_keys = config[func_keys_k]
+    model = config[model_k]
+    run_desc = config[run_desc_k]
+
     N_H = input_shape[0]
     N_W = input_shape[1]
     N_C = input_shape[2]
-    elipse_conf = config[elipse_conf_k]
 
-    ds_data_dirs_orig = ds_data_dirs_orig.map(read_orig_images, num_parallel_calls=AUTOTUNE)
-    ds_data_dirs_inv = ds_data_dirs_orig.map(convert_inv_images, num_parallel_calls=AUTOTUNE)
+    outputs_folder = cu.create_output_folders(model,run_desc)
+    patterns,num_files = list_folder_patterns(dir,patt)
+    num_data = int(num_files*percent/100)
 
-    ds_data_dirs = ds_data_dirs_orig
+    dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
+    .shuffle(4096)\
+    .take(num_data)\
+    .map(read_orig_images,num_parallel_calls=AUTOTUNE)
 
-    if config[mirror_data_k]:
-        ds_data_dirs = ds_data_dirs.concatenate(ds_data_dirs_inv)
+    for key in func_keys:
+        dataset = dataset.map(dicc_map_funcs[key], num_parallel_calls=AUTOTUNE)
 
-    if config[make_elipses_k]:
-        ds_data_dirs = ds_data_dirs.map(elipse_tf, num_parallel_calls=AUTOTUNE)
+    dataset = dataset.batch(batch_size,True)\
+    .cache("./{}/{}/cache.temp".format(outputs_folder,cu.cache_folder_name))\
+    .prefetch(buffer_size=AUTOTUNE)
 
-    ds_data_dirs = ds_data_dirs.batch(config[md.batch_size_k],True)
-    ds_data_dirs = ds_data_dirs.prefetch(buffer_size=AUTOTUNE)
-    #ds_data_dirs = ds_data_dirs.cache("./{}/cache.temp".format(outputs_folder))
-
-    '''data_list_batched = list(ds_data_dirs.as_numpy_iterator())
-    print("Batches Created:",len(data_list_batched))
-    print("shape of batch:",data_list_batched[0].shape,"\n")'''
-
-    return ds_data_dirs,num_files
+    return dataset
 
 def load_verification_images(fps_shape,num_fps):
     global N_H,N_W,N_C
@@ -72,24 +69,22 @@ def load_verification_images(fps_shape,num_fps):
     N_W = fps_shape[1]
     N_C = fps_shape[2]
 
-    validation_images_source = "./Img_Validation_images"
-
+    validation_images_source = "./{}".format(img_validation_images_folder)
     counter = 0
     for root,folders,files in os.walk(validation_images_source):
         for file in files:
             file_dir = os.path.join(root,file)
-            img = read_orig_images(file_dir).numpy()
-            img = elipse(img).reshape(1,N_H,N_W,N_C)
-            img_val = np.concatenate((img_val,img),0) if counter else img
-
+            img_read = read_orig_images(file_dir).numpy().reshape(1,N_H,N_W,N_C)
+            img_tar = np.concatenate((img_tar,img_read),0) if counter else img_read
+            img_elip = elipse(np.copy(img_read).reshape(N_H,N_W,N_C)).reshape(1,N_H,N_W,N_C)
+            img_val = np.concatenate((img_val,img_elip),0) if counter else img_elip
             counter+=1
             if counter == num_fps:
                 break
-
         if counter == num_fps:
             break
 
-    return img_val/127.5-1
+    return img_val/127.5-1,img_tar/127.5-1
 
 def list_folder_patterns(root_dir,patern):
     patterns = []
@@ -103,6 +98,10 @@ def list_folder_patterns(root_dir,patern):
             if act_patern not in patterns:
                 patterns.append(act_patern)
                 continue
+
+    np.random.shuffle(patterns)
+    np.random.shuffle(patterns)
+
     return patterns,num_files
 
 def read_orig_images(file_path):
@@ -113,15 +112,16 @@ def read_orig_images(file_path):
     img = tf.cast(img,tf.float32)
     return img
 
-def convert_inv_images(img):
-    return tf.image.flip_left_right(img)
-
-def elipse_tf(img):
+# MAPPING METHODS
+def tf_elipse(img):
     img_elip = tf.numpy_function(elipse,[img],tf.float32)
     return img_elip/127.5-1,img/127.5-1
 
-def elipse(img):
+def tf_blur(img):
+    img_blur = tf.numpy_function(blur,[img],tf.float32)
+    return img_blur/127.5-1,img/127.5-1
 
+def elipse(img):
     n_holes = int(cu.calc_unit_to_range(np.random.rand(),elipse_conf[1],elipse_conf[2]))
     rand = np.random.rand(n_holes,4)
     pos = cu.calc_unit_to_range(rand[:,0:2],elipse_conf[0]+2*elipse_conf[4],N_H-elipse_conf[0]-2*elipse_conf[4]).astype(int)
@@ -153,3 +153,11 @@ def elipse(img):
                     if not ( (b2)*((j-x0)**2) +(a2)*((i-y0)**2) <= a2b2 ):
                         img[i,j,0]=rectangle[i-y0+b,j-x0+a]
     return img
+
+def blur(img):
+    return img
+
+dicc_map_funcs = {
+    make_elipses_k: tf_elipse,
+    blur_image_k: tf_blur
+}
