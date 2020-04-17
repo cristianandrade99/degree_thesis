@@ -28,9 +28,10 @@ N_C = 1
 
 elipse_conf = []
 blur_conf = []
+func_keys = []
 
 def load_process_fp_dataset(config):
-    global N_H,N_W,N_C,elipse_conf
+    global N_H,N_W,N_C,elipse_conf,func_keys
 
     batch_size = config[md.batch_size_k]
     dir,patt = config[md.data_dir_patt_k][0],config[md.data_dir_patt_k][1]
@@ -54,7 +55,7 @@ def load_process_fp_dataset(config):
     .map(read_orig_images,num_parallel_calls=AUTOTUNE)
 
     for key in func_keys:
-        dataset = dataset.map(dicc_map_funcs[key], num_parallel_calls=AUTOTUNE)
+        dataset = dataset.map(dicc_map_funcs_tf[key], num_parallel_calls=AUTOTUNE)
 
     dataset = dataset.batch(batch_size,True)\
     .cache("./{}/{}/cache.temp".format(outputs_folder,cu.cache_folder_name))\
@@ -63,7 +64,7 @@ def load_process_fp_dataset(config):
     return dataset
 
 def load_verification_images(fps_shape,num_fps):
-    global N_H,N_W,N_C
+    global N_H,N_W,N_C,func_keys
 
     N_H = fps_shape[0]
     N_W = fps_shape[1]
@@ -76,8 +77,13 @@ def load_verification_images(fps_shape,num_fps):
             file_dir = os.path.join(root,file)
             img_read = read_orig_images(file_dir).numpy().reshape(1,N_H,N_W,N_C)
             img_tar = np.concatenate((img_tar,img_read),0) if counter else img_read
-            img_elip = elipse(np.copy(img_read).reshape(N_H,N_W,N_C)).reshape(1,N_H,N_W,N_C)
-            img_val = np.concatenate((img_val,img_elip),0) if counter else img_elip
+
+            img_mod = np.copy(img_read).reshape(N_H,N_W,N_C)
+            for key in func_keys:
+                img_mod = dicc_map_funcs[key](img_mod)
+            img_mod = img_mod.reshape(1,N_H,N_W,N_C)
+
+            img_val = np.concatenate((img_val,img_mod),0) if counter else img_mod
             counter+=1
             if counter == num_fps:
                 break
@@ -157,7 +163,12 @@ def elipse(img):
 def blur(img):
     return img
 
-dicc_map_funcs = {
+dicc_map_funcs_tf = {
     make_elipses_k: tf_elipse,
     blur_image_k: tf_blur
+}
+
+dicc_map_funcs = {
+    make_elipses_k: elipse,
+    blur_image_k: blur
 }
