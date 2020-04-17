@@ -161,6 +161,24 @@ def elipse(img):
     return img
 
 def blur(img):
+    goal = 250
+    sd=18
+
+    mean_calc = np.mean(img)
+    val = 9
+    mod = val if goal > mean_calc else -val
+    while  mean_calc <= goal-val/2 or mean_calc >= goal+val/2:
+        img=(img+mod).clip(0,255)
+        mean_calc = np.mean(img)
+
+    val = 1
+    mod = val if goal > mean_calc else -val
+    while  mean_calc.astype(int)!=goal:
+        img=(img+mod).clip(0,255)
+        mean_calc = np.mean(img)
+
+    img+=np.random.normal(0,sd,img.shape)
+
     return img
 
 dicc_map_funcs_tf = {
