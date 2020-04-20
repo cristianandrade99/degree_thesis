@@ -32,6 +32,7 @@ alpha_ones_p_k = "alpha_ones"
 entropy_p_loss_k = "entropy_p_loss"
 entropy_p_acc_k = "entropy_p_acc"
 losses_tuple_k = "losses_tuple"
+gen_disc_loss_alphas_k = "gen_disc_loss_alphas"
 
 mean_k = "mean_k"
 logvar_k = "logvar_k"
@@ -87,13 +88,14 @@ class P2P():
             ones_loss,alphas_ones_loss,zeros_loss = train_data[entropy_p_loss_k]
             ones_acc,alphas_ones_acc,zeros_acc = train_data[entropy_p_acc_k]
             losses_tuple = train_data[losses_tuple_k]
+            gen_loss_alph,disc_loss_alph = train_data[gen_disc_loss_alphas_k][0],train_data[gen_disc_loss_alphas_k][1]
 
             actual_losses = calc_losses(losses_tuple,fps_to_enhance,fps_enhanced)
             actual_losses[gen_loss_k] = binary_crossentropy(ones_loss,fps_enhanced_logits)
-            total_gen_loss = actual_losses[total_loss_k] + actual_losses[gen_loss_k]
+            total_gen_loss = gen_loss_alph*(actual_losses[total_loss_k] + actual_losses[gen_loss_k])
 
-            actual_losses[disc_target_loss_k] = binary_crossentropy(alphas_ones_loss,fps_target_logits)
-            actual_losses[disc_enhanced_loss_k] = binary_crossentropy(zeros_loss,fps_enhanced_logits)
+            actual_losses[disc_target_loss_k] = disc_loss_alph*binary_crossentropy(alphas_ones_loss,fps_target_logits)
+            actual_losses[disc_enhanced_loss_k] = disc_loss_alph*binary_crossentropy(zeros_loss,fps_enhanced_logits)
 
             target_probs = tf.reduce_mean( tf.keras.activations.sigmoid(fps_target_logits),[1,2,3] )
             enhanced_probs = tf.reduce_mean( tf.keras.activations.sigmoid(fps_enhanced_logits),[1,2,3] )
@@ -120,6 +122,7 @@ class P2P():
         num_images = train_conf[num_images_k]
         gen_adam_params = train_conf[gen_adam_params_k]
         disc_adam_params = train_conf[disc_adam_params_k]
+        gen_disc_loss_alphas = train_conf[gen_disc_loss_alphas_k]
         alpha_ones_p = train_conf[alpha_ones_p_k]
         num_histograms = train_conf[num_histograms_k]
         dataset = train_conf[data_info_k]
@@ -150,6 +153,7 @@ class P2P():
         train_data[entropy_p_loss_k] = entropy_p_vectors([self.config[batch_size_k],30,30,1],alpha_ones_p)
         train_data[entropy_p_acc_k] = entropy_p_vectors([self.config[batch_size_k],],alpha_ones_p)
         train_data[losses_tuple_k] = losses_tuple
+        train_data[gen_disc_loss_alphas_k] = gen_disc_loss_alphas
 
         for epoch_index in range(num_epochs):
             for fps_to_enhance,fps_target in dataset:

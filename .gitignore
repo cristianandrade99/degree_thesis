@@ -8,9 +8,11 @@ script_cvae.py
 script_gan_cvae.py
 script_gan.py
 script_p2p.py
+script_p2p_blur.py
 script_p2p_lenovo.py
 job_cvae.sh
 job_gan_cvae.sh
 job_gan.sh
 job_p2p.sh
+job_p2p_blur.sh
 Job_logs
