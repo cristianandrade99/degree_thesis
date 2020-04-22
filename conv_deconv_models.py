@@ -90,7 +90,7 @@ class P2P():
             losses_tuple = train_data[losses_tuple_k]
             gen_loss_alph,disc_loss_alph = train_data[gen_disc_loss_alphas_k][0],train_data[gen_disc_loss_alphas_k][1]
 
-            actual_losses = calc_losses(losses_tuple,fps_to_enhance,fps_enhanced)
+            actual_losses = calc_losses(losses_tuple,fps_enhanced,fps_target)
             actual_losses[gen_loss_k] = binary_crossentropy(ones_loss,fps_enhanced_logits)
             total_gen_loss = gen_loss_alph*(actual_losses[total_loss_k] + actual_losses[gen_loss_k])
 
