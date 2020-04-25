@@ -1,4 +1,3 @@
-import conv_deconv_blocks as cdb
 import matplotlib.pyplot as plt
 import data_processing as dp
 import custom_layers as cl
@@ -8,14 +7,14 @@ import datetime as dt
 import numpy as np
 import time
 
-fps_shape_k = cdb.fps_shape_k
+fps_shape_k = "fps_shape"
 latent_dim_k = "latent_dim"
 batch_size_k = "batch_size"
 data_dir_patt_k = "data_dir_patt"
 
 use_latest_checkpoint_k = "use_latest_checkpoint"
 num_epochs_k = "num_epochs_k"
-checkpoints_frecuency_k = "checkpoints_frecuency"
+epochs_to_save_k = "epochs_to_save"
 num_images_k = "num_images"
 types_losses_k = "types_losses"
 alphas_losses_k = "alphas_losses_k"
@@ -60,8 +59,8 @@ disc_enhanced_gradients_k = "Discriminator Enhanced Gradients"
 gen_gradients_k = "Generator Gradients"
 
 binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-max_checkpoints_to_keep = 2
-num_progress_images = 4
+max_checkpoints_to_keep = 10
+num_progress_images = 6
 
 class P2P():
     def __init__(self,generator,discriminator,config,run_description):
@@ -118,7 +117,7 @@ class P2P():
         num_epochs = train_conf[num_epochs_k]
         losses_tuple = train_conf[types_losses_k],train_conf[alphas_losses_k]
         use_latest_checkpoint = train_conf[use_latest_checkpoint_k]
-        checkpoints_frecuency = train_conf[checkpoints_frecuency_k]
+        epochs_to_save = train_conf[epochs_to_save_k]
         num_images = train_conf[num_images_k]
         gen_adam_params = train_conf[gen_adam_params_k]
         disc_adam_params = train_conf[disc_adam_params_k]
@@ -161,7 +160,7 @@ class P2P():
 
             self.p2p_data_to_tensorboard(train_step_info,epoch_index,num_epochs,num_histograms)
             self.enhanced_fps_progress_to_folder(self.config[fps_shape_k],num_images,outputs_folder,epoch_index,num_epochs)
-            self.save_checkpoint(epoch_index,num_epochs,checkpoints_frecuency)
+            self.save_checkpoint(epoch_index,epochs_to_save)
 
         log_training_end(start_time,num_epochs)
 
@@ -171,9 +170,10 @@ class P2P():
                                               gen_optimizer=self.gen_optimizer,
                                               disc_optimizer=self.disc_optimizer)
 
-        self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint,
-                                                             "./{}/{}".format(folder_name,cu.checkpoints_folder_name),
-                                                             max_to_keep=max_checkpoints_to_keep)
+        self.checkpoint_manager = tf.train.CheckpointManager(checkpoint=self.checkpoint,
+                                                             directory="./{}/{}".format(folder_name,cu.checkpoints_folder_name),
+                                                             max_to_keep = None,
+                                                             checkpoint_name='epoch')
 
     def p2p_data_to_tensorboard(self,train_step_info,epoch_index,num_epochs,num_histograms):
         actual_losses,actual_gradients,actual_accuracies = train_step_info
@@ -206,10 +206,9 @@ class P2P():
             fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
             save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,outputs_folder,epoch_index)
 
-    def save_checkpoint(self,epoch_index,num_epochs,checkpoints_frecuency):
-        check_frec = checkpoints_frecuency if num_epochs >= checkpoints_frecuency else 2
-        if( check_frec != 0 and (epoch_index+1)%check_frec == 0 ):
-            self.checkpoint_manager.save()
+    def save_checkpoint(self,epoch_index,epochs_to_save):
+        if( epoch_index in epochs_to_save ):
+            self.checkpoint_manager.save(epoch_index)
 
 # GLOBAL METHODS
 def calc_losses(losses_tuple,batch_1,batch_2,dicc_info=None):
@@ -243,7 +242,7 @@ def save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,outputs_folder,epoc
         fps_enhanced = np.squeeze(fps_enhanced,axis=3)
         fps_target = np.squeeze(fps_target,axis=3)
 
-    fig,axs = plt.subplots(num_progress_images,1,figsize=(20,20),constrained_layout=True)
+    fig,axs = plt.subplots(num_progress_images,1,figsize=(30,30),constrained_layout=True)
     fig.suptitle("Epoch: {}".format(epoch_index))
 
     min,max = np.min(fps_enhanced),np.max(fps_enhanced)

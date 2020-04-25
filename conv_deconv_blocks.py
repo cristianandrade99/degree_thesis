@@ -1,5 +1,6 @@
 import tensorflow as tf
 import custom_layers as cl
+import conv_deconv_models as md
 
 # Dictionary keys
 enc_fin_den_len_k = "f_den_len"
@@ -105,3 +106,144 @@ def keras_activation_layer(act):
     elif act == sgm_act:
         activ = cl.Sigmoid()
     return activ
+
+def downsample(filters, size, apply_batchnorm=True):
+    initializer = tf.random_normal_initializer(0.0,0.02)
+    result = tf.keras.Sequential()
+    result.add(tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',kernel_initializer=initializer, use_bias=False))
+    if apply_batchnorm:
+        result.add(tf.keras.layers.BatchNormalization())
+    result.add(tf.keras.layers.LeakyReLU())
+    return result
+
+def upsample(filters, size, apply_dropout=False):
+    initializer = tf.random_normal_initializer(0.0,0.02)
+    result = tf.keras.Sequential()
+    result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2,padding='same',kernel_initializer=initializer,use_bias=False))
+    result.add(tf.keras.layers.BatchNormalization())
+    if apply_dropout:
+      result.add(tf.keras.layers.Dropout(0.5))
+    result.add(tf.keras.layers.ReLU())
+    return result
+
+def create_gen_disc(config):
+    # GENERATOR
+    inputs = tf.keras.layers.Input(config[md.fps_shape_k])
+    x = inputs
+    initializer = tf.random_normal_initializer(0.0,0.02)
+    skips = []
+
+    down_stack = [downsample(64, 4, apply_batchnorm=False),
+                downsample(128, 4),
+                downsample(256, 4),
+                downsample(512, 4),
+                downsample(512, 4),
+                downsample(512, 4),
+                downsample(512, 4),
+                downsample(512, 4)]
+
+    up_stack = [upsample(512, 4, apply_dropout=True),
+              upsample(512, 4, apply_dropout=True),
+              upsample(512, 4, apply_dropout=True),
+              upsample(512, 4),
+              upsample(256, 4),
+              upsample(128, 4),
+              upsample(64, 4)]
+
+    last = tf.keras.layers.Conv2DTranspose(config[md.fps_shape_k][2], 4,strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
+
+    for down in down_stack:
+        x = down(x)
+        skips.append(x)
+
+    skips = reversed(skips[:-1])
+    for up, skip in zip(up_stack, skips):
+        x = up(x)
+        x = tf.keras.layers.Concatenate()([x, skip])
+
+    x = last(x)
+    generator = tf.keras.Model(inputs=inputs, outputs=x)
+
+    # DISCRIMINATOR
+    initializer = tf.random_normal_initializer(0.0, 0.02)
+
+    inp = tf.keras.layers.Input(shape=config[md.fps_shape_k], name='input_image')
+    tar = tf.keras.layers.Input(shape=config[md.fps_shape_k], name='target_image')
+    x = tf.keras.layers.concatenate([inp, tar])
+
+    down1 = downsample(64, 4, False)(x)
+    down2 = downsample(128, 4)(down1)
+    down3 = downsample(256, 4)(down2)
+
+    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
+    conv = tf.keras.layers.Conv2D(512, 4, strides=1,kernel_initializer=initializer,use_bias=False)(zero_pad1)
+
+    batchnorm1 = tf.keras.layers.BatchNormalization()(conv)
+    leaky_relu = tf.keras.layers.LeakyReLU()(batchnorm1)
+    zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)
+    last = tf.keras.layers.Conv2D(1, 4, strides=1,kernel_initializer=initializer)(zero_pad2)
+
+    discriminator = tf.keras.Model(inputs=[inp, tar], outputs=last)
+
+    return generator,discriminator
+
+def create_gen_disc_lenovo(config):
+    # GENERATOR
+    inputs = tf.keras.layers.Input(config[md.fps_shape_k])
+    x = inputs
+    initializer = tf.random_normal_initializer(0.0,0.02)
+    skips = []
+
+    down_stack = [downsample(2, 4, apply_batchnorm=False),
+                downsample(2, 4),
+                downsample(2, 4),
+                downsample(2, 4),
+                downsample(2, 4),
+                downsample(2, 4),
+                downsample(2, 4),
+                downsample(2, 4)]
+
+    up_stack = [upsample(2, 4, apply_dropout=True),
+              upsample(2, 4, apply_dropout=True),
+              upsample(2, 4, apply_dropout=True),
+              upsample(2, 4),
+              upsample(2, 4),
+              upsample(2, 4),
+              upsample(2, 4)]
+
+    last = tf.keras.layers.Conv2DTranspose(config[md.fps_shape_k][2], 4,strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
+
+    for down in down_stack:
+        x = down(x)
+        skips.append(x)
+
+    skips = reversed(skips[:-1])
+    for up, skip in zip(up_stack, skips):
+        x = up(x)
+        x = tf.keras.layers.Concatenate()([x, skip])
+
+    x = last(x)
+    generator = tf.keras.Model(inputs=inputs, outputs=x)
+
+    # DISCRIMINATOR
+    initializer = tf.random_normal_initializer(0., 0.02)
+
+    inp = tf.keras.layers.Input(shape=config[md.fps_shape_k], name='input_image')
+    tar = tf.keras.layers.Input(shape=config[md.fps_shape_k], name='target_image')
+    x = tf.keras.layers.concatenate([inp, tar])
+
+    down1 = downsample(2, 4, False)(x)
+    down2 = downsample(2, 4)(down1)
+    down3 = downsample(2, 4)(down2)
+
+    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
+    conv = tf.keras.layers.Conv2D(2, 4, strides=1,kernel_initializer=initializer,use_bias=False)(zero_pad1)
+
+    batchnorm1 = tf.keras.layers.BatchNormalization()(conv)
+    leaky_relu = tf.keras.layers.LeakyReLU()(batchnorm1)
+    zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)
+    last = tf.keras.layers.Conv2D(1, 4, strides=1,kernel_initializer=initializer)(zero_pad2)
+
+    discriminator = tf.keras.Model(inputs=[inp, tar], outputs=last)
+
+    return generator,discriminator

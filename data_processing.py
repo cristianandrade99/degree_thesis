@@ -90,7 +90,7 @@ def load_verification_images(fps_shape,num_fps):
         if counter == num_fps:
             break
 
-    return img_val/127.5-1,img_tar/127.5-1
+    return img_val/127.5-1.0,img_tar/127.5-1.0
 
 def list_folder_patterns(root_dir,patern):
     patterns = []
@@ -115,17 +115,16 @@ def read_orig_images(file_path):
     img = tf.io.read_file(file_path)
     img = tf.io.decode_png(img,channels=N_C)
     img = tf.image.resize(img, [N_H, N_W],preserve_aspect_ratio=False)
-    img = tf.cast(img,tf.float32)
     return img
 
 # MAPPING METHODS
 def tf_elipse(img):
     img_elip = tf.numpy_function(elipse,[img],tf.float32)
-    return img_elip/127.5-1,img/127.5-1
+    return img_elip/127.5-1.0,img/127.5-1.0
 
 def tf_blur(img):
     img_blur = tf.numpy_function(blur,[img],tf.float32)
-    return img_blur/127.5-1,img/127.5-1
+    return img_blur/127.5-1.0,img/127.5-1.0
 
 def elipse(img):
     n_holes = int(cu.calc_unit_to_range(np.random.rand(),elipse_conf[1],elipse_conf[2]))
