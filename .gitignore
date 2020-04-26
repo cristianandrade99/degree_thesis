@@ -2,11 +2,14 @@
 __pycache__
 Data
 Img_Validation_images
+Latex_paper
 Output_data
+Output_data_validation
 MODELS.ipynb
 script_p2p_holes.py
 script_p2p_blur.py
 script_p2p_lenovo.py
 job_p2p_holes.sh
 job_p2p_blur.sh
+job_p2p_lenovo.sh
 Job_logs
