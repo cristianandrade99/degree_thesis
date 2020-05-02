@@ -1,0 +1,57 @@
+batch_size_k = "batch_size"
+data_dir_patt_k = "data_dir_patt"
+data_percent_k = "data_percent"
+fps_shape_k = "fps_shape"
+func_keys_k = "func_keys"
+model_k = "model"
+run_desc_k = "run_desc"
+
+generator_config_k = "generator_config"
+discriminator_config_1_k = "discriminator_config_1"
+discriminator_config_2_k = "discriminator_config_2"
+
+blur_image_k = "blur_image"
+elip_image_k = "elip_image"
+
+use_latest_checkpoint_k = "use_latest_checkpoint"
+num_epochs_k = "num_epochs"
+epochs_to_save_k = "epochs_to_save"
+num_images_k = "num_images"
+types_losses_k = "types_losses"
+alphas_losses_k = "alphas_losses"
+num_histograms_k = "num_histograms"
+data_info_k = "data_info"
+num_progress_images_k = "num_progress_images"
+
+disc_adam_params_k = "disc_adam_params"
+gen_adam_params_k = "gen_adam_params"
+
+disc_learning_rate_k = "disc_learning_rate"
+gen_learning_rate_k = "gen_learning_rate"
+alpha_ones_p_k = "alpha_ones"
+entropy_p_loss_k = "entropy_p_loss"
+entropy_p_acc_k = "entropy_p_acc"
+losses_tuple_k = "losses_tuple"
+gen_disc_loss_alphas_k = "gen_disc_loss_alphas"
+
+mean_k = "mean"
+logvar_k = "logvar"
+
+square_loss = "Mean Squared Error"
+l1_loss = "L1 Loss"
+kl_loss = "KL Divergence"
+ssim_loss = "SSIM Loss"
+tv_loss = "Total Variation Loss"
+cross_loss = "CrossEntropy Loss"
+total_loss_k = "Total Loss"
+
+disc_target_loss_k = "Discriminator Target Loss"
+disc_enhanced_loss_k = "Discriminator Enhanced Loss"
+gen_loss_k = "Generator Loss"
+
+disc_target_accuracy_k = "Discriminator Target Accuracy"
+disc_enhanced_accurac_k = "Discriminator Enhanced Accuracy"
+
+disc_target_gradients_k = "Discriminator Target Gradients"
+disc_enhanced_gradients_k = "Discriminator Enhanced Gradients"
+gen_gradients_k = "Generator Gradients"

@@ -5,20 +5,10 @@ import numpy as np
 import cv2
 import os
 
-import conv_deconv_models as md
 import cris_utils as cu
+import keys as km
 
 img_validation_images_folder = "Img_Validation_images"
-
-func_keys_k = "func_keys"
-func_confs_k = "func_confs"
-
-make_elipses_k = "func_make_elipses"
-blur_image_k = "func_blur_image"
-
-model_k = "model"
-run_desc_k = "run_desc"
-data_percent_k = "data_percent"
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -33,13 +23,13 @@ func_keys = []
 def load_process_fp_dataset(config):
     global N_H,N_W,N_C,elipse_conf,func_keys
 
-    batch_size = config[md.batch_size_k]
-    dir,patt = config[md.data_dir_patt_k][0],config[md.data_dir_patt_k][1]
-    percent = config[data_percent_k]
-    input_shape = config[md.fps_shape_k]
-    func_keys = config[func_keys_k]
-    model = config[model_k]
-    run_desc = config[run_desc_k]
+    batch_size = config[km.batch_size_k]
+    dir,patt = config[km.data_dir_patt_k][0],config[km.data_dir_patt_k][1]
+    percent = config[km.data_percent_k]
+    input_shape = config[km.fps_shape_k]
+    func_keys = config[km.func_keys_k]
+    model = config[km.model_k]
+    run_desc = config[km.run_desc_k]
 
     N_H = input_shape[0]
     N_W = input_shape[1]
@@ -181,11 +171,11 @@ def blur(img):
     return img
 
 dicc_map_funcs_tf = {
-    make_elipses_k: tf_elipse,
-    blur_image_k: tf_blur
+    km.elip_image_k: tf_elipse,
+    km.blur_image_k: tf_blur
 }
 
 dicc_map_funcs = {
-    make_elipses_k: elipse,
-    blur_image_k: blur
+    km.elip_image_k: elipse,
+    km.blur_image_k: blur
 }

@@ -1,20 +1,14 @@
-import sys
-
-sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python37.zip')
-sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7')
-sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7/lib-dynload')
-sys.path.append('/hpcfs/apps/anaconda/3.7/envs/tensorflow-GPU.2.0.0/lib/python3.7/site-packages')
-
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import datetime
 import shutil
 import glob
+import sys
 import os
 
 outputs_folder = ""
-output_data_folder_name = "Output_data"
+output_data_folder_name = "Output_training"
 performance_imgs_folder_name = "Img_Performance_Images"
 tensorboard_folder_name = "tf_Tensorboard_logs"
 checkpoints_folder_name = "tf_Checkpoints"
@@ -96,14 +90,21 @@ def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, l
     if iteration == total:
         print()
 
-def printDict(dicc,header):
+def createDictMsg(dicc,header):
     msg = "Dictionary: {}\n".format(header)
     for key in dicc:
-        msg += "{}: {}\n".format(key,dicc[key])
+
+        if type(dicc[key]) == type([]):
+            msg += "{}:\n".format(key)
+            for value in dicc[key]:
+                msg += "            - {}\n".format(value)
+        else:
+            msg += "{}: {}\n".format(key,dicc[key])
+
     msg += "\n"
     return msg
 
-def printList(lista,header):
+def createListMsg(lista,header):
     msg = "Lista: {}\n".format(header)
     for item in lista:
         msg += "{}\n".format(item)
