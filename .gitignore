@@ -7,5 +7,8 @@ Output_valid
 Sources
 MODELS.ipynb
 Job_logs
+job_train_elip.sh
+job_train_blur.sh
+job_nbis.sh
 script_p2p.py
 script_p2p_lenovo.py
