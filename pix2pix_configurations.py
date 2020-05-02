@@ -1,7 +1,7 @@
 import tensorflow as tf
 import keys as km
 
-def standard_configuration():
+def paper_gen_disc_configuration():
     # [depth,n_f,apply_dropout on decoder]
     # n_f last decoder layer
     generator_config = [ [64,4,False],
@@ -25,7 +25,7 @@ def standard_configuration():
 
     return create_dicc(generator_config,discriminator_config_1,discriminator_config_2)
 
-def lenovo_configuration():
+def lenovo_gen_disc_configuration():
     # [depth,n_f,apply_dropout on decoder]
     # n_f last decoder layer
     generator_config = [ [1,4,False],
@@ -75,7 +75,7 @@ def create_dicc(generator_config,discriminator_config_1,discriminator_config_2):
         km.discriminator_config_2_k: discriminator_config_2
     }
 
-def create_standard_pix2pix(gen_disc_config,fps_shape):
+def create_paper_gen_disc(gen_disc_config,fps_shape):
 
     # CONFIGURATION
     generator_config = gen_disc_config[km.generator_config_k]

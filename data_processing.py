@@ -28,14 +28,13 @@ def load_process_fp_dataset(config):
     percent = config[km.data_percent_k]
     input_shape = config[km.fps_shape_k]
     func_keys = config[km.func_keys_k]
-    model = config[km.model_k]
     run_desc = config[km.run_desc_k]
 
     N_H = input_shape[0]
     N_W = input_shape[1]
     N_C = input_shape[2]
 
-    outputs_folder = cu.create_output_folders(model,run_desc)
+    outputs_folder = cu.create_output_folders(run_desc)
     patterns,num_files = list_folder_patterns(dir,patt)
     num_data = int(num_files*percent/100)
 

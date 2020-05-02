@@ -2,9 +2,10 @@
 __pycache__
 Data
 Img_Validation_images
-Output_nbis
-Output_training
-Output_validation
+Output_train
+Output_valid
+Sources
 MODELS.ipynb
 Job_logs
 script_p2p.py
+script_p2p_lenovo.py

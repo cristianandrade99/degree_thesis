@@ -7,18 +7,17 @@ import keys as km
 import time
 
 class Pix2Pix():
-    def __init__(self,general_config,gen_disc_config):
+    def __init__(self,general_config,gen_disc_config,generator_discriminator):
 
         self.general_config = general_config
         self.gen_disc_config = gen_disc_config
+
+        self.generator,self.discriminator = generator_discriminator
 
         self.gen_optimizer = tf.keras.optimizers.Adam()
         self.disc_optimizer = tf.keras.optimizers.Adam()
 
         self.binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-
-    def update_gen_disc(self,generator_discriminator):
-        self.generator,self.discriminator = generator_discriminator
 
     @tf.function
     def train_step(self,fps_to_enhance,fps_target,train_data):
@@ -79,9 +78,9 @@ class Pix2Pix():
         cu.cu_print("Pix2Pix model training started")
         start_time = time.time()
 
-        msg_config = cu.createDictMsg(self.general_config,"General Configuration")
-        msg_config += cu.createDictMsg(self.gen_disc_config,"Generator Discriminator Configuration")
-        msg_config += cu.createDictMsg(train_conf,"Training Configuration")
+        msg_config = cu.createDictMsg(self.general_config,"=== General Configuration ===")
+        msg_config += cu.createDictMsg(self.gen_disc_config,"=== Generator Discriminator Configuration ===")
+        msg_config += cu.createDictMsg(train_conf,"=== Training Configuration ===")
         cu.cu_print(msg_config)
 
         self.gen_optimizer.learning_rate = gen_adam_params[0]
@@ -94,7 +93,7 @@ class Pix2Pix():
 
         self.create_checkpoint_handlers(outputs_folder)
         if use_latest_checkpoint:
-            self.checkpoint.restore(checkpoint_manager.latest_checkpoint)
+            self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
 
         train_data = {}
         train_data[km.entropy_p_loss_k] = self.entropy_p_vectors([self.general_config[km.batch_size_k],29,29,1],alpha_ones_p)

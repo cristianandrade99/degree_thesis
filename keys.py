@@ -10,8 +10,8 @@ generator_config_k = "generator_config"
 discriminator_config_1_k = "discriminator_config_1"
 discriminator_config_2_k = "discriminator_config_2"
 
-blur_image_k = "blur_image"
-elip_image_k = "elip_image"
+elip_image_k = "elip"
+blur_image_k = "blur"
 
 use_latest_checkpoint_k = "use_latest_checkpoint"
 num_epochs_k = "num_epochs"
