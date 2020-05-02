@@ -29,9 +29,9 @@ generator_discriminator = p2p_c.create_standard_pix2pix(gen_disc_config,general_
 data_info = dp.load_process_fp_dataset(general_config)
 
 train_conf = {
-    km.num_epochs_k: 2,
+    km.num_epochs_k: 4,
     km.num_images_k: 2,
-    km.epochs_to_save_k: [0],
+    km.epochs_to_save_k: [0,2],
     km.use_latest_checkpoint_k: False,
     km.types_losses_k: [km.l1_loss],
     km.alphas_losses_k: [50.0],
