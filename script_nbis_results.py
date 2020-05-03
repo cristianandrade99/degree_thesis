@@ -41,6 +41,7 @@ class Source():
         self.remove_mindctc_leftover_files()
         self.create_xyt_compare_file()
         self.create_output_score_file()
+        self.create_roc_images()
         self.create_cmc_images()
         self.obtain_qualities()
 
@@ -114,23 +115,60 @@ class Source():
                                        "-o {}".format(self.dir_output_scores_file),
                                        "-M {}".format(self.dir_input_xyt_pairs_file)))
 
+    def create_roc_images(self):
+
+        matriz_to_enh,matriz_enhan = self.create_score_matrices()
+
+        thrs_to_enh = list(np.arange(0,np.max(matriz_to_enh),5))
+        thrs_enhan = list(np.arange(0,np.max(matriz_enhan),5))
+        num_thrs_to_enh = len(thrs_to_enh)
+        num_thrs_enhan = len(thrs_enhan)
+
+        TPR_to_enh = np.zeros(num_thrs_to_enh)
+        FPR_to_enh = np.zeros(num_thrs_to_enh)
+        TPR_enhan = np.zeros(num_thrs_enhan)
+        FPR_enhan = np.zeros(num_thrs_enhan)
+
+        for i in range(self.num_images):
+
+            indexs = list(np.arange(self.num_images))
+            indexs.remove(i)
+            rand1 = indexs[int(np.random.rand()*(self.num_images-1))]
+            rand2 = indexs[int(np.random.rand()*(self.num_images-1))]
+
+            for k in range(num_thrs_to_enh):
+
+                if matriz_to_enh[i,i]>=thrs_to_enh[k]:
+                    TPR_to_enh[k]+=1
+
+                if matriz_to_enh[i,rand1]>=thrs_to_enh[k]:
+                    FPR_to_enh[k]+=1
+
+            for k in range(num_thrs_enhan):
+
+                if matriz_enhan[i,i]>=thrs_enhan[k]:
+                    TPR_enhan[k]+=1
+
+                if matriz_enhan[i,rand2]>=thrs_enhan[k]:
+                    FPR_enhan[k]+=1
+
+        TPR_to_enh/=self.num_images
+        FPR_to_enh/=self.num_images
+        TPR_enhan/=self.num_images
+        FPR_enhan/=self.num_images
+
+        fig = plt.figure()
+        plt.plot(FPR_to_enh,TPR_to_enh,ls="-",c="b",marker="^",mfc="r",mec="r")
+        plt.plot(FPR_enhan,TPR_enhan,ls="-",c="b",marker="^",mfc="g",mec="g")
+        plt.xlabel("FPR",fontsize=20)
+        plt.ylabel("TPR",fontsize=20)
+        plt.title("ROC Comparison",fontsize=20)
+        plt.legend(["to enhance","enhanced"])
+        fig.savefig(os.path.join(self.dir_source,"roc_comparison.jpg"))
+
     def create_cmc_images(self):
 
-        scores_file = open(self.dir_output_scores_file)
-        lines = scores_file.readlines()
-
-        matriz_to_enh = np.zeros((self.num_images,self.num_images))
-        matriz_enhan = np.zeros((self.num_images,self.num_images))
-
-        num_lines = 2*self.num_images**2
-        for i in range( num_lines ):
-
-            fields = lines[i].split()
-            indx = int(fields[0][-5])
-            indx_tar = int(fields[1][-5])
-
-            matriz_act = matriz_to_enh if i < num_lines/2 else matriz_enhan
-            matriz_act[indx,indx_tar] = int(fields[2])
+        matriz_to_enh,matriz_enhan = self.create_score_matrices()
 
         matriz_sort_to_enh = np.flip(np.sort(matriz_to_enh),1)
         matriz_sort_enhan = np.flip(np.sort(matriz_enhan),1)
@@ -152,24 +190,36 @@ class Source():
             val_enhan = list(ranks_enhan).count(r+1)/self.num_images
             cmc_enhan[r] = val_enhan if r==0 else val_enhan + cmc_enhan[r-1]
 
-        format0 = "b"
-        format1 = "r^"
-
         fig = plt.figure()
-        plt.plot(cmc_to_enh,format0,cmc_to_enh,format1)
+        plt.plot(cmc_to_enh,ls="-",c="b",marker="^",mfc="r",mec="r")
+        plt.plot(cmc_enhan,ls="-",c="b",marker="^",mfc="g",mec="g")
         plt.xlabel("k",fontsize=20)
         plt.ylabel("Accuracy ",fontsize=20)
-        plt.title("CMC TO ENH",fontsize=20)
-        fig.savefig(os.path.join(self.dir_source,"cmc_to_enh.jpg"))
+        plt.title("CMC Comparison",fontsize=20)
+        plt.legend(["to enhance","enhanced"])
+        fig.savefig(os.path.join(self.dir_source,"cmc_comparison.jpg"))
 
-        fig = plt.figure()
-        plt.plot(cmc_enhan,format0,cmc_enhan,format1)
-        plt.xlabel("k",fontsize=20)
-        plt.ylabel("Accuracy ",fontsize=20)
-        plt.title("CMC ENHAN",fontsize=20)
-        fig.savefig(os.path.join(self.dir_source,"cmc_enh.jpg"))
+    def create_score_matrices(self):
+
+        scores_file = open(self.dir_output_scores_file)
+        lines = scores_file.readlines()
+
+        matriz_to_enh = np.zeros((self.num_images,self.num_images))
+        matriz_enhan = np.zeros((self.num_images,self.num_images))
+
+        num_lines = 2*self.num_images**2
+        for i in range( num_lines ):
+
+            fields = lines[i].split()
+            indx = int(fields[0][-5])
+            indx_tar = int(fields[1][-5])
+
+            matriz_act = matriz_to_enh if i < num_lines/2 else matriz_enhan
+            matriz_act[indx,indx_tar] = int(fields[2])
 
         scores_file.close()
+
+        return matriz_to_enh,matriz_enhan
 
     def obtain_qualities(self):
         self.qualities = np.zeros((self.num_images,len(names_cats)))
