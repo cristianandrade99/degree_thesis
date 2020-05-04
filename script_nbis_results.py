@@ -51,7 +51,7 @@ class Source():
         for element in os.listdir(self.dir_source):
             dir_act_element = os.path.join(self.dir_source,element)
 
-            if os.path.isfile(ruta):
+            if os.path.isfile(dir_act_element):
                 os.remove(dir_act_element)
             else:
                 if images_folder_name not in dir_act_element:
