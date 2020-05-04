@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 from PIL import Image
-import subprocess
 import numpy as np
+import subprocess
+import shutil
 import time
 import wsq
 import os
@@ -45,11 +46,23 @@ class Source():
         self.obtain_qualities()
 
     def remove_files(self):
+
+        for element in os.listdir(self.dir_source):
+            dir_act_element = os.path.join(self.dir_source,element)
+
+            if os.path.isfile(ruta):
+                os.remove(dir_act_element)
+            else:
+                if images_folder_name not in dir_act_element:
+                    shutil.rmtree(dir_act_element)
+
+        '''
         for root,folders,files in os.walk(self.dir_source):
             for file in files:
                 ruta = os.path.join(root,file)
                 if os.path.isfile(ruta) and images_folder_name not in ruta:
                     os.remove(ruta)
+        '''
 
     def obtain_ext(self):
         files = os.listdir(self.dir_images_files)
@@ -111,6 +124,7 @@ class Source():
     def create_output_score_file(self):
         os.system("{} {} {} {}".format(dir_file_bozorth3,
                                        "-A outfmt=pgs",
+                                       "-A maxfiles=1000000000",
                                        "-o {}".format(self.dir_output_scores_file),
                                        "-M {}".format(self.dir_input_xyt_pairs_file)))
 
