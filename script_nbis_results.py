@@ -123,11 +123,11 @@ class Source():
         xyt_compare_list_file.close()
 
     def create_output_score_file(self):
-        os.system("{} {} {} {}".format(dir_file_bozorth3,
-                                       "-A outfmt=pgs",
-                                       "-A maxfiles=1000000000",
-                                       "-o {}".format(self.dir_output_scores_file),
-                                       "-M {}".format(self.dir_input_xyt_pairs_file)))
+        os.system("{} {} {} {} {}".format(dir_file_bozorth3,
+                                            "-A outfmt=pgs",
+                                            "-A maxfiles=10000000",
+                                            "-o {}".format(self.dir_output_scores_file),
+                                            "-M {}".format(self.dir_input_xyt_pairs_file)))
 
     def create_roc_images(self):
 
