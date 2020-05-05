@@ -1,4 +1,7 @@
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+
+from matplotlib import pyplot as plt
 from PIL import Image
 import numpy as np
 import subprocess
