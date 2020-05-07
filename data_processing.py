@@ -9,6 +9,8 @@ import cris_utils as cu
 import keys as km
 
 img_validation_images_folder = "Img_Validation_images"
+Olimpia = "Olimpia"
+olimpia_255 = tf.cast(tf.ones([400,72,1])*255,tf.uint8)
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -36,12 +38,16 @@ def load_process_fp_dataset(config):
 
     outputs_folder = cu.create_output_folders(run_desc)
     patterns,num_files = list_folder_patterns(dir,patt)
+
+    patterns = [os.path.join(dir,"*{}".format(patt))] if Olimpia in dir else patterns
+    num_files = len(os.listdir(dir)) if Olimpia in dir else num_files
+    read_func = read_orig_images_olimpia if Olimpia in dir else read_orig_images
     num_data = int(num_files*percent/100)
 
     dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
     .shuffle(4096)\
     .take(num_data)\
-    .map(read_orig_images,num_parallel_calls=AUTOTUNE)
+    .map(read_func,num_parallel_calls=AUTOTUNE)
 
     for key in func_keys:
         dataset = dataset.map(dicc_map_funcs_tf[key], num_parallel_calls=AUTOTUNE)
@@ -64,14 +70,13 @@ def load_verification_images(fps_shape,num_fps):
     for root,folders,files in os.walk(validation_images_source):
         for file in files:
             file_dir = os.path.join(root,file)
-            img_read = read_orig_images(file_dir).numpy().reshape(1,N_H,N_W,N_C)
+            read_func = read_orig_images_olimpia if Olimpia in file_dir else read_orig_images
+            img_read = read_func(file_dir).numpy().reshape(1,N_H,N_W,N_C)
             img_tar = np.concatenate((img_tar,img_read),0) if counter else img_read
-
             img_mod = np.copy(img_read).reshape(N_H,N_W,N_C)
             for key in func_keys:
                 img_mod = dicc_map_funcs[key](img_mod)
             img_mod = img_mod.reshape(1,N_H,N_W,N_C)
-
             img_val = np.concatenate((img_val,img_mod),0) if counter else img_mod
             counter+=1
             if counter == num_fps:
@@ -103,6 +108,14 @@ def read_orig_images(file_path):
     global N_H,N_W,N_C
     img = tf.io.read_file(file_path)
     img = tf.io.decode_png(img,channels=N_C)
+    img = tf.image.resize(img, [N_H, N_W],preserve_aspect_ratio=False)
+    return img
+
+def read_orig_images_olimpia(file_path):
+    global N_H,N_W,N_C
+    img = tf.io.read_file(file_path)
+    img = tf.io.decode_jpeg(img,channels=N_C)
+    img = tf.concat([olimpia_255,img,olimpia_255],1)
     img = tf.image.resize(img, [N_H, N_W],preserve_aspect_ratio=False)
     return img
 

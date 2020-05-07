@@ -19,6 +19,9 @@ class Pix2Pix():
 
         self.binary_crossentropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
+        self.num_progress_images = 12
+        self.fps_to_enhance,self.fps_target = dp.load_verification_images(self.general_config[km.fps_shape_k],self.num_progress_images)
+
     @tf.function
     def train_step(self,fps_to_enhance,fps_target,train_data):
         actual_info,actual_gradients,actual_accuracies = {},{},{}
@@ -70,7 +73,6 @@ class Pix2Pix():
         alpha_ones_p = train_conf[km.alpha_ones_p_k]
         num_histograms = train_conf[km.num_histograms_k]
         dataset = train_conf[km.data_info_k]
-        self.num_progress_images = train_conf[km.num_progress_images_k]
 
         outputs_folder = cu.outputs_folder
         tf_summary_writer = cu.tf_summary_writer(outputs_folder)
@@ -106,7 +108,7 @@ class Pix2Pix():
                 train_step_info = self.train_step(fps_to_enhance,fps_target,train_data)
 
             self.p2p_data_to_tensorboard(train_step_info,epoch_index,num_epochs,num_histograms,tf_summary_writer)
-            self.enhanced_fps_progress_to_folder(self.general_config[km.fps_shape_k],num_images,outputs_folder,epoch_index,num_epochs)
+            self.enhanced_fps_progress_to_folder(num_images,outputs_folder,epoch_index,num_epochs)
             self.save_checkpoint(epoch_index,epochs_to_save)
 
         self.log_training_end(start_time,num_epochs)
@@ -145,13 +147,12 @@ class Pix2Pix():
                 for tv,g in zip(self.discriminator.trainable_variables,actual_gradients[km.disc_enhanced_gradients_k]):
                     tf.summary.histogram(tv.name+" enhanced gradient",g,step=epoch_index)
 
-    def enhanced_fps_progress_to_folder(self,fps_shape,num_images,outputs_folder,epoch_index,num_epochs):
+    def enhanced_fps_progress_to_folder(self,num_images,outputs_folder,epoch_index,num_epochs):
         n_images = num_images if num_epochs>=num_images else num_epochs
 
         if( n_images != 0 and epoch_index%int(num_epochs/n_images) == 0 ):
-            fps_to_enhance,fps_target = dp.load_verification_images(fps_shape,self.num_progress_images)
-            fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
-            self.save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,outputs_folder,epoch_index)
+            fps_enhanced = self.generator(self.fps_to_enhance,training=False).numpy()
+            self.save_enhanced_fps(self.fps_to_enhance,fps_enhanced,self.fps_target,outputs_folder,epoch_index)
 
     def save_checkpoint(self,epoch_index,epochs_to_save):
         if( epoch_index in epochs_to_save ):
@@ -188,15 +189,19 @@ class Pix2Pix():
             fps_enhanced = np.squeeze(fps_enhanced,axis=3)
             fps_target = np.squeeze(fps_target,axis=3)
 
-        fig,axs = plt.subplots(self.num_progress_images,1,figsize=(30,30),constrained_layout=True)
+        n_filas = int(self.num_progress_images/3)
+        fig,axs = plt.subplots(n_filas,3,figsize=(int(32*9/4),32),constrained_layout=True)
         fig.suptitle("Epoch: {}".format(epoch_index))
 
         min,max = np.min(fps_enhanced),np.max(fps_enhanced)
         fps_enhanced_m = -1 + 2*(fps_enhanced-min)/(max-min)
         fps = np.concatenate((fps_to_enhance,fps_enhanced_m,fps_target),2)
+
         for i in range(self.num_progress_images):
-            axs[i].imshow(fps[i,:],cmap="gray")
-            axs[i].axis('off')
+            x = int(i/3)
+            y = i%3
+            axs[x,y].imshow(fps[i,:],cmap="gray")
+            axs[x,y].axis('off')
 
         plt.savefig("./{}/{}/fp_at_epoch_{}".format(outputs_folder,cu.performance_imgs_folder_name,epoch_index),bbox_inches='tight')
         plt.close(fig)

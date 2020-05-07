@@ -38,27 +38,16 @@ class Source():
 
     def call_init_source_methods(self):
         self.remove_files()
-        print("removed files")
         self.obtain_ext()
-        print("extension obtained")
         self.create_folders()
-        print("folders created")
         self.create_wsq_files()
-        print("wsq folders created")
         self.create_xyt_files()
-        print("xyt files created")
         self.remove_mindctc_leftover_files()
-        print("leftover files removed")
         self.create_xyt_compare_file()
-        print("xyt comparison file created")
         self.create_output_score_file()
-        print("output score file created")
         self.create_roc_images()
-        print("roc images created")
         self.create_cmc_images()
-        print("cmc images created")
         self.obtain_qualities()
-        print("qualities obtained")
 
     def remove_files(self):
 
