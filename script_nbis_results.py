@@ -8,6 +8,7 @@ import subprocess
 import shutil
 import time
 import wsq
+import sys
 import os
 
 dir_sources = "./Output_valid"
@@ -34,9 +35,8 @@ class Source():
         self.dir_input_xyt_pairs_file = os.path.join(self.dir_source,"xyt_pairs.lst")
         self.dir_output_scores_file = os.path.join(self.dir_source,"scores.txt")
 
-        self.num_images = int(len(os.listdir(self.dir_images_files))/3)
-
     def call_init_source_methods(self):
+        self.obtain_number_images()
         self.remove_files()
         self.obtain_ext()
         self.create_folders()
@@ -49,6 +49,9 @@ class Source():
         self.create_cmc_images()
         self.obtain_qualities()
 
+    def obtain_number_images(self):
+        self.num_images = int(len(os.listdir(self.dir_images_files))/3)
+
     def remove_files(self):
 
         for element in os.listdir(self.dir_source):
@@ -59,14 +62,6 @@ class Source():
             else:
                 if images_folder_name not in dir_act_element:
                     shutil.rmtree(dir_act_element)
-
-        '''
-        for root,folders,files in os.walk(self.dir_source):
-            for file in files:
-                ruta = os.path.join(root,file)
-                if os.path.isfile(ruta) and images_folder_name not in ruta:
-                    os.remove(ruta)
-        '''
 
     def obtain_ext(self):
         files = os.listdir(self.dir_images_files)
@@ -133,7 +128,6 @@ class Source():
                                             "-M {}".format(self.dir_input_xyt_pairs_file)))
 
     def create_roc_images(self):
-
         matriz_to_enh,matriz_enhan = self.create_score_matrices()
 
         thrs_to_enh = list(np.arange(0,np.max(matriz_to_enh),5))
@@ -181,10 +175,9 @@ class Source():
         plt.ylabel("TPR",fontsize=20)
         plt.title("ROC Comparison",fontsize=20)
         plt.legend(["to enhance","enhanced"])
-        fig.savefig(os.path.join(self.dir_source,"roc_comparison.jpg"))
+        fig.savefig(os.path.join(self.dir_source,"roc_comparison.png"))
 
     def create_cmc_images(self):
-
         matriz_to_enh,matriz_enhan = self.create_score_matrices()
 
         matriz_sort_to_enh = np.flip(np.sort(matriz_to_enh),1)
@@ -214,10 +207,9 @@ class Source():
         plt.ylabel("Accuracy ",fontsize=20)
         plt.title("CMC Comparison",fontsize=20)
         plt.legend(["to enhance","enhanced"])
-        fig.savefig(os.path.join(self.dir_source,"cmc_comparison.jpg"))
+        fig.savefig(os.path.join(self.dir_source,"cmc_comparison.png"))
 
     def create_score_matrices(self):
-
         scores_file = open(self.dir_output_scores_file)
         lines = scores_file.readlines()
 
@@ -228,14 +220,14 @@ class Source():
         for i in range( num_lines ):
 
             fields = lines[i].split()
-            indx = int(fields[0][-5])
-            indx_tar = int(fields[1][-5])
+            indx = int(i%self.num_images)
+            indx_tar = int(i/self.num_images)
 
             matriz_act = matriz_to_enh if i < num_lines/2 else matriz_enhan
+            indx_tar = indx_tar if indx_tar < self.num_images else indx_tar - self.num_images
             matriz_act[indx,indx_tar] = int(fields[2])
 
         scores_file.close()
-
         return matriz_to_enh,matriz_enhan
 
     def obtain_qualities(self):
@@ -249,16 +241,16 @@ class Source():
 
         self.quality_means = np.mean(self.qualities,0).round(2)
 
-def create_sources(dir_sources):
+def create_sources(folders_names):
     sources_dicc = {}
 
-    for source_name in os.listdir(dir_sources):
-        act_path = os.path.join(dir_sources,source_name)
+    for folder_name in folders_names:
+        act_path = os.path.join(dir_sources,folder_name)
 
-        if not os.path.isfile(act_path):
-            act_source = Source(os.path.join(dir_sources,source_name))
+        if folder_name in os.listdir(dir_sources) and not os.path.isfile(act_path):
+            act_source = Source(os.path.join(dir_sources,folder_name))
             act_source.call_init_source_methods()
-            sources_dicc[source_name] = act_source
+            sources_dicc[folder_name] = act_source
 
     return sources_dicc
 
@@ -309,6 +301,13 @@ def verif(sources_dicc):
                 print(xyt)
             print()
 
-sources_dicc = create_sources(dir_sources)
-#verif(sources_dicc)
-create_quality_comparison(sources_dicc)
+args = sys.argv
+len_args = len(args)
+
+if len_args > 1:
+    sources_dicc = create_sources(args[1:])
+    if len(sources_dicc)!=0:
+        #verif(sources_dicc)
+        create_quality_comparison(sources_dicc)
+else:
+    print("Must be inserted the folders to obtain results")
