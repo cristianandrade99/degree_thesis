@@ -286,7 +286,7 @@ def create_quality_comparison(sources_dicc):
     autolabel(rects3)
 
     fig.tight_layout()
-    fig.savefig(os.path.join(dir_sources,"mean_qualities.jpg"))
+    fig.savefig(os.path.join(dir_sources,"mean_qualities.png"))
 
 def verif(sources_dicc):
 
