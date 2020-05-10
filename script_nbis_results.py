@@ -2,6 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from matplotlib import pyplot as plt
+from scipy import integrate
 from PIL import Image
 import numpy as np
 import subprocess
@@ -36,7 +37,7 @@ class Source():
         self.dir_output_scores_file = os.path.join(self.dir_source,"scores.txt")
 
     def call_init_source_methods(self):
-        self.obtain_number_images()
+        '''self.obtain_number_images()
         self.remove_files()
         self.obtain_ext()
         self.create_folders()
@@ -46,7 +47,7 @@ class Source():
         self.create_xyt_compare_file()
         self.create_output_score_file()
         self.create_roc_images()
-        self.create_cmc_images()
+        self.create_cmc_images()'''
         self.obtain_qualities()
 
     def obtain_number_images(self):
@@ -177,6 +178,17 @@ class Source():
         plt.legend(["to enhance","enhanced"])
         fig.savefig(os.path.join(self.dir_source,"roc_comparison.png"))
 
+        TPR_to_enh.sort()
+        TPR_enhan.sort()
+
+        print(TPR_to_enh)
+        print(FPR_to_enh)
+
+        integral_to_enh = integrate.simps(TPR_to_enh)
+        integral_enhan = integrate.simps(TPR_enhan)
+        print("integral to enh: {}".format(integral_to_enh))
+        print("integral enhan: {}".format(integral_enhan))
+
     def create_cmc_images(self):
         matriz_to_enh,matriz_enhan = self.create_score_matrices()
 
@@ -231,6 +243,7 @@ class Source():
         return matriz_to_enh,matriz_enhan
 
     def obtain_qualities(self):
+        self.num_images = 500
         self.qualities = np.zeros((self.num_images,len(names_cats)))
 
         for j in range(len(names_cats)):
@@ -255,7 +268,7 @@ def create_sources(folders_names):
     return sources_dicc
 
 def create_quality_comparison(sources_dicc):
-    labels = [ key for key in sources_dicc ]
+    labels = [ "Qualities" for key in sources_dicc ]
 
     to_enh_means = [ sources_dicc[key].quality_means[0] for key in sources_dicc ]
     enh_means = [ sources_dicc[key].quality_means[1] for key in sources_dicc ]
