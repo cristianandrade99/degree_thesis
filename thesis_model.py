@@ -766,7 +766,7 @@ class ThesisModel():
         autolabel(rects2)
         autolabel(rects3)
         fig.tight_layout()
-        fig.savefig(os.path.join(dir_sources,"mean_qualities.png"))
+        fig.savefig(os.path.join(self.model_validation_dir,"quality_chart.png"))
 
     def create_score_matrices(self):
         scores_file = open(self.dir_output_scores_file)

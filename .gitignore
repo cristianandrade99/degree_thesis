@@ -1,8 +1,9 @@
 .ipynb_checkpoints
 __pycache__
 data
-Jobs_Scripts_cluster
+Jobs_cluster
 output_train
 output_valid
 validation_imgs
 Job_logs
+json_conf_gen.py
