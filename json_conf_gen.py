@@ -42,7 +42,6 @@ overall_conf = {
 }
 
 args,len_args = sys.argv,len(sys.argv)
-
 if len_args == 2:
     file = open("./{}.json".format(args[1]),'w')
     json.dump(overall_conf,file)

@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 import keys as km
 import datetime
+import shutil
 import json
 import time
 import sys

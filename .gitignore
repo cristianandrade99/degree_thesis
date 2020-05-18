@@ -5,4 +5,4 @@ Jobs_Scripts_cluster
 output_train
 output_valid
 validation_imgs
-job_logs
+Job_logs

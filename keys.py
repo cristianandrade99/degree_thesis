@@ -52,7 +52,6 @@ gen_loss_k = "Generator Loss"
 
 disc_target_accuracy_k = "Discriminator Target Accuracy"
 disc_enhanced_accurac_k = "Discriminator Enhanced Accuracy"
-
 disc_target_gradients_k = "Discriminator Target Gradients"
 disc_enhanced_gradients_k = "Discriminator Enhanced Gradients"
 gen_gradients_k = "Generator Gradients"
