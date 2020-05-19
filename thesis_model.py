@@ -596,6 +596,7 @@ class ThesisModel():
     def obtain_nbis_results(self,execution_folder_name):
         self.init_nbis_results_variables(execution_folder_name)
         self.remove_files()
+        self.create_wsq_xyt_folders()
         self.create_wsq_files()
         self.create_xyt_files()
         self.create_xyt_compare_file()
@@ -615,9 +616,6 @@ class ThesisModel():
         self.num_images = int(len(os.listdir(self.dir_images_files))/3)
         self.ext = os.path.splitext(os.path.join(self.dir_images_files,os.listdir(self.dir_images_files)[0]))[1][1:]
 
-        if not os.path.exists(self.dir_wsq_files): os.makedirs(self.dir_wsq_files)
-        if not os.path.exists(self.dir_xyt_files): os.makedirs(self.dir_xyt_files)
-
     def remove_files(self):
         for element in os.listdir(self.model_validation_dir):
             dir_act_element = os.path.join(self.model_validation_dir,element)
@@ -626,6 +624,10 @@ class ThesisModel():
             else:
                 if "images" not in dir_act_element:
                     shutil.rmtree(dir_act_element)
+
+    def create_wsq_xyt_folders(self):
+        os.makedirs(self.dir_wsq_files)
+        os.makedirs(self.dir_xyt_files)
 
     def create_wsq_files(self):
         self.dirs_wsq_files = []
@@ -736,8 +738,8 @@ class ThesisModel():
         fig.savefig(os.path.join(self.model_validation_dir,"cmc_comparison.png"))
 
     def create_quality_chart(self):
-        self.qualities = np.zeros((self.num_images,len(names_cats)))
-        for j in range(len(names_cats)):
+        self.qualities = np.zeros((self.num_images,len(self.names_cats)))
+        for j in range(len(self.names_cats)):
             for i in range(self.num_images):
                 index = j*self.num_images+i
                 process = subprocess.run([self.dir_file_nfiq,self.dirs_wsq_files[index]],stdout=subprocess.PIPE,universal_newlines=True)
