@@ -33,7 +33,7 @@ class ThesisModel():
         self.jpg = "jpg"
 
         self.names_cats = ["to_enh","enhan","tar"]
-        self.dir_nbis_modules = os.path.join(self.root_dir,"nbis_modules")
+        self.dir_nbis_modules = os.path.join(self.root_dir,"NBIS_modules")
         self.dir_file_mindtct = os.path.join(self.dir_nbis_modules,"mindtct")
         self.dir_file_bozorth3 = os.path.join(self.dir_nbis_modules,"bozorth3")
         self.dir_file_nfiq = os.path.join(self.dir_nbis_modules,"nfiq")
