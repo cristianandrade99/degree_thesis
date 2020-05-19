@@ -1,9 +1,12 @@
 import path_cluster # DO NOT DELETE
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import tensorflow as tf
 from PIL import Image
 import numpy as np
 import keys as km
+import subprocess
 import datetime
 import shutil
 import json
