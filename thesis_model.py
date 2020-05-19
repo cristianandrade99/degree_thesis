@@ -632,7 +632,7 @@ class ThesisModel():
             for i in range(self.num_images):
                 file_name = "{}-{}".format(cat_name,i)
                 dir_image = os.path.join(self.dir_images_files,"{}.{}".format(file_name,self.ext))
-                dir_wsq_file = os.path.join(self.dir_wsq_files,"{}.{}".format(file_name,wsq_ext))
+                dir_wsq_file = os.path.join(self.dir_wsq_files,"{}.{}".format(file_name,self.wsq_ext))
                 self.dirs_wsq_files.append(dir_wsq_file)
                 if not os.path.exists(dir_wsq_file):
                     img = Image.open(dir_image)
@@ -644,14 +644,14 @@ class ThesisModel():
             for i in range(self.num_images):
                 file_name = "{}-{}".format(cat_name,i)
                 dir_xyt_file = os.path.join(self.dir_xyt_files,file_name)
-                dir_xyt_file_ext = "{}.{}".format(dir_xyt_file,xyt_ext)
+                dir_xyt_file_ext = "{}.{}".format(dir_xyt_file,self.xyt_ext)
                 self.dirs_xyt_files.append(dir_xyt_file_ext)
-                dir_wsq_file_ext = os.path.join(self.dir_wsq_files,"{}.{}".format(file_name,wsq_ext))
+                dir_wsq_file_ext = os.path.join(self.dir_wsq_files,"{}.{}".format(file_name,self.wsq_ext))
                 if not os.path.exists(dir_xyt_file_ext):
                     subprocess.run([self.dir_file_mindtct,dir_wsq_file_ext,dir_xyt_file])
         for root,folders,files in os.walk(self.dir_xyt_files):
             for file in files:
-                if xyt_ext not in file:
+                if self.xyt_ext not in file:
                     os.remove(os.path.join(root,file))
 
     def create_xyt_compare_file(self):
