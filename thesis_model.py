@@ -10,6 +10,7 @@ import json
 import time
 import sys
 import cv2
+import wsq
 import os
 
 class ThesisModel():
