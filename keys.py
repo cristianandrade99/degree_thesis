@@ -8,6 +8,9 @@ generator_config_k = "generator_config"
 discriminator_config_1_k = "discriminator_config_1"
 discriminator_config_2_k = "discriminator_config_2"
 
+cvaeu_gen_arch_k = "cvaeu_gen_arch"
+cvaeu_disc_arch_k = "cvaeu_disc_arch"
+
 elip_image_k = "elip"
 blur_image_k = "blur"
 
@@ -23,11 +26,6 @@ epochs_to_save_chkps_k = "epochs_to_save_chkps"
 
 generator_arch_k = "generator_arch"
 discriminator_k = "discriminator"
-
-p2p_paper_gen_conf_k = "p2p_paper_gen_conf"
-p2p_paper_disc_conf_k = "p2p_paper_disc_conf"
-p2p_lenovo_gen_conf_k = "p2p_lenovo_gen_conf"
-p2p_lenovo_disc_conf_k = "p2p_lenovo_disc_conf"
 
 disc_learning_rate_k = "disc_learning_rate"
 gen_learning_rate_k = "gen_learning_rate"
@@ -59,3 +57,11 @@ gen_gradients_k = "Generator Gradients"
 data_config_k = "data_config"
 train_conf_k = "train_conf"
 gen_disc_conf_k = "gen_disc_conf"
+
+model_type_k = "model_type"
+p2p_model = "p2p"
+cvaeu_model = "cvaeu"
+
+env_type_k = "env_type"
+lenovo_env = "lenovo_env"
+cluster_env = "cluster_env"

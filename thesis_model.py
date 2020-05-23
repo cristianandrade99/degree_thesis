@@ -9,12 +9,17 @@ import keys as km
 import subprocess
 import datetime
 import shutil
+import psutil
 import json
 import time
 import sys
 import cv2
 import wsq
 import os
+
+class Sample(tf.keras.layers.Layer):
+    def call(self,mean,logvar):
+        return tf.random.normal(tf.shape(mean))*tf.exp(0.5*logvar)+mean
 
 class ThesisModel():
     def __init__(self):
@@ -40,6 +45,8 @@ class ThesisModel():
         self.wsq_ext = "wsq"
         self.xyt_ext = "xyt"
 
+        self.sampler = Sample()
+
     # Initializes model directories
     def initialice_model_folders_files(self):
         self.model_outputs_folder_dir = os.path.join(self.outputs_folder_dir,self.execution_folder_name)
@@ -60,7 +67,7 @@ class ThesisModel():
     def load_overall_configuration(self,overall_conf,create_dirs=True):
         self.configure_data(overall_conf[km.data_config_k])
         self.configure_train(overall_conf[km.train_conf_k])
-        self.configure_generator_discriminator(overall_conf[km.gen_disc_conf_k])
+        self.create_generator_discriminator(overall_conf[km.gen_disc_conf_k])
         self.initialice_model_folders_files()
         if create_dirs: self.create_model_folders_files()
         self.create_checkpoint_handlers()
@@ -71,7 +78,7 @@ class ThesisModel():
         self.execution_folder_name = "{}_{}".format(datetime.datetime.now().strftime("%d%b%y--%I-%M-%S-%p"),json_name)
         self.load_overall_configuration(overall_conf)
         self.output_log_file = open(os.path.join(self.model_outputs_folder_dir,"output_log.txt"),"w")
-        self.dicc_to_json(overall_conf,os.path.join(self.model_outputs_folder_dir,"configuration.json"))
+        self.save_dicc_into_json(overall_conf,os.path.join(self.model_outputs_folder_dir,"configuration.json"))
 
     # Loads overall configuration for validation images generation
     def load_overall_configuration_for_validation(self,execution_folder_name):
@@ -114,13 +121,6 @@ class ThesisModel():
         self.train_data[km.entropy_p_loss_k] = self.entropy_p_vectors([self.batch_size,29,29,1],self.alpha_ones_p)
         self.train_data[km.entropy_p_acc_k] = self.entropy_p_vectors([self.batch_size,],self.alpha_ones_p)
 
-    # Initializes generator and discriminator
-    def configure_generator_discriminator(self,gen_disc_conf):
-        self.generate_architectures()
-        self.gen_disc_conf = gen_disc_conf
-        self.generator = self.gen_disc_archs[gen_disc_conf[km.generator_arch_k]]
-        self.discriminator = self.gen_disc_archs[gen_disc_conf[km.discriminator_k]]
-
     # Loads training data
     def load_training_data(self):
         patterns = os.path.join(self.data_dir_patt[0],"*{}".format(self.data_dir_patt[1]))
@@ -141,7 +141,12 @@ class ThesisModel():
         actual_info,actual_gradients,actual_accuracies = {},{},{}
 
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_target_tape, tf.GradientTape() as disc_enhanced_tape:
-            fps_enhanced = self.generator(fps_to_enhance, training=True)
+            mean,logvar,fps_enhanced=None,None,None
+
+            if self.model_type==km.p2p_model:
+                fps_enhanced = self.generator(fps_to_enhance, training=True)
+            elif self.model_type==km.cvaeu_model:
+                fps_enhanced,mean,logvar = self.generator(fps_to_enhance, training=True)
 
             fps_target_logits = self.discriminator([fps_to_enhance,fps_target],training=True)
             fps_enhanced_logits = self.discriminator([fps_to_enhance,fps_enhanced],training=True)
@@ -149,7 +154,7 @@ class ThesisModel():
             ones_loss,alphas_ones_loss,zeros_loss = self.train_data[km.entropy_p_loss_k]
             ones_acc,alphas_ones_acc,zeros_acc = self.train_data[km.entropy_p_acc_k]
 
-            actual_losses = self.obtain_gen_losses(fps_enhanced,fps_target)
+            actual_losses = self.obtain_gen_losses(fps_enhanced,fps_target,{km.mean_k:mean,km.logvar_k:logvar})
             actual_losses[km.gen_loss_k] = self.binary_crossentropy(ones_loss,fps_enhanced_logits)
             total_gen_loss = self.gen_disc_loss_alphas[0]*(actual_losses[km.total_loss_k] + actual_losses[km.gen_loss_k])
 
@@ -187,13 +192,20 @@ class ThesisModel():
             self.save_checkpoint(epoch_index)
         self.log_training_end()
 
+    def enhance_fingerprints(self,fps_to_enhance):
+        if self.model_type==km.p2p_model:
+            fps_enhanced = self.generator(fps_to_enhance, training=False)
+        elif self.model_type==km.cvaeu_model:
+            fps_enhanced,_,_ = self.generator(fps_to_enhance, training=False)
+        return fps_enhanced
+
     # Creates the validation images given a trained model
     def create_validation_images(self,data_origin_dir,num_fps):
         self.validation_model_output_images_dir = os.path.join(self.validation_outputs_dir,self.execution_folder_name,"images")
         if not os.path.exists(self.validation_model_output_images_dir): os.makedirs(self.validation_model_output_images_dir)
 
         fps_to_enhance,fps_target = self.load_validation_images(data_origin_dir,num_fps)
-        fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
+        fps_enhanced = self.enhance_fingerprints(fps_to_enhance).numpy()
 
         for i in range(num_fps):
             for imgs,cat_name in zip([fps_to_enhance,fps_enhanced,fps_target],self.names_cats):
@@ -276,7 +288,7 @@ class ThesisModel():
             if loss == km.square_loss:
                 actual_losses[km.square_loss] = alph*tf.reduce_mean(tf.keras.losses.MSE(batch_1,batch_2))
             elif loss == km.kl_loss:
-                actual_losses[km.kl_loss] = alph*tf.reduce_mean(0.5*( tf.square(dicc_info[km.mean_k])+tf.exp(dicc_info[km.logvar_k])-1-logvar ))
+                actual_losses[km.kl_loss] = alph*tf.reduce_mean(0.5*( tf.square(dicc_info[km.mean_k])+tf.exp(dicc_info[km.logvar_k])-1-dicc_info[km.logvar_k] ))
             elif loss == km.ssim_loss:
                 actual_losses[km.ssim_loss] = alph*tf.reduce_mean( tf.image.ssim(batch_1,batch_2,max_val=2.0) )
             elif loss == km.tv_loss:
@@ -294,7 +306,7 @@ class ThesisModel():
     def save_validation_images(self,epoch_index,fps_to_enhance,fps_target):
         num_epochs_to_save = self.total_epochs_to_save_imgs if self.num_epochs>=self.total_epochs_to_save_imgs else self.num_epochs
         if( num_epochs_to_save != 0 and epoch_index%int(self.num_epochs/num_epochs_to_save) == 0 ):
-            fps_enhanced = self.generator(fps_to_enhance,training=False).numpy()
+            fps_enhanced = self.enhance_fingerprints(fps_to_enhance).numpy()
             self.save_enhanced_fps(fps_to_enhance,fps_enhanced,fps_target,epoch_index)
 
     # Saves enhanced valdiation fingerprints
@@ -441,7 +453,7 @@ class ThesisModel():
         file.close()
         return dictionary
 
-    def dicc_to_json(self,dicc,destiny):
+    def save_dicc_into_json(self,dicc,destiny):
         file = open(destiny,"w")
         json.dump(dicc,file)
         file.close()
@@ -573,6 +585,71 @@ class ThesisModel():
         discriminator = tf.keras.Model(inputs=[inp, tar], outputs=x)
         return generator, discriminator
 
+    # Creates a generator and a discriminator
+    def create_cvaeu_gen_disc(self,gen_disc_config):
+        # CONFIGURATION
+        generator_config = gen_disc_config[km.generator_config_k]
+        len_generator_config = len(generator_config)
+
+        discriminator_config_1 = gen_disc_config[km.discriminator_config_1_k]
+        discriminator_config_2 = gen_disc_config[km.discriminator_config_2_k]
+
+        # GENERATOR
+        inputs = tf.keras.layers.Input(self.fps_shape)
+        x = inputs
+        initializer = tf.random_normal_initializer(0.0,0.02)
+        skips = []
+
+        down_stack = []
+        up_stack = []
+
+        for i in range(len_generator_config-1):
+            depth,n_f,apply_drop = generator_config[i]
+
+            down_stack.append(self.downsample(depth,n_f,apply_batchnorm=False if i==0 else True))
+            if (i<len_generator_config-2): up_stack.append(self.upsample(depth,n_f,apply_dropout=apply_drop))
+
+        up_stack = reversed(up_stack)
+
+        for down in down_stack[:-1]:
+            x = down(x)
+            skips.append(x)
+
+        latent_dim = 128
+        x = tf.keras.layers.Flatten()(x)
+        x = tf.keras.layers.Dense(2*latent_dim)(x)
+        mean,logvar = tf.split(x,2,1)
+        z = self.sampler(mean,logvar)
+        x = tf.keras.layers.Dense(1*1*512)(z)
+        x = tf.keras.layers.Reshape((1,1,512))(x)
+
+        skips = reversed(skips)
+        for up, skip in zip(up_stack, skips):
+            x = up(x)
+            x = tf.keras.layers.Concatenate()([x, skip])
+
+        last = tf.keras.layers.Conv2DTranspose(self.N_C, generator_config[len_generator_config-1],strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
+        x = last(x)
+        cvaeu_generator = tf.keras.Model(inputs=inputs, outputs=[x,mean,logvar])
+
+        # DISCRIMINATOR
+        initializer = tf.random_normal_initializer(0.0, 0.02)
+
+        inp = tf.keras.layers.Input(shape=self.fps_shape, name='input_image')
+        tar = tf.keras.layers.Input(shape=self.fps_shape, name='target_image')
+        x = tf.keras.layers.concatenate([inp, tar])
+
+        for depth,n_f,apply_bn in discriminator_config_1:
+            x = self.downsample(depth, n_f,apply_bn)(x)
+
+        x = tf.keras.layers.Conv2D(discriminator_config_2[0][0], discriminator_config_2[0][1], padding='same', strides=1,kernel_initializer=initializer,use_bias=False)(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.LeakyReLU()(x)
+        x = tf.keras.layers.Conv2D(1, discriminator_config_2[1], strides=1,kernel_initializer=initializer)(x)
+
+        cvae_discriminator = tf.keras.Model(inputs=[inp, tar], outputs=x)
+        return cvaeu_generator, cvae_discriminator
+
     # Returns a dictionary with generator and discriminator configuration
     def create_dicc(self,generator_config,discriminator_config_1,discriminator_config_2):
         return {
@@ -582,19 +659,17 @@ class ThesisModel():
         }
 
     # Generates candidate architectures
-    def generate_architectures(self):
-        paper_gen_disc_configuration = self.create_paper_gen_disc_configuration()
-        lenovo_gen_disc_configuration = self.create_lenovo_gen_disc_configuration()
+    def create_generator_discriminator(self,gen_disc_conf):
+        self.gen_disc_conf = gen_disc_conf
+        self.model_type = gen_disc_conf[km.model_type_k]
 
-        paper_gen,paper_disc = self.create_paper_gen_disc(paper_gen_disc_configuration)
-        lenovo_gen,lenovo_disc = self.create_paper_gen_disc(lenovo_gen_disc_configuration)
+        gen_disc_layers_conf = self.create_lenovo_gen_disc_configuration()
+        if gen_disc_conf[km.env_type_k]==km.cluster_env:
+            gen_disc_layers_conf = self.create_paper_gen_disc_configuration()
 
-        self.gen_disc_archs = {
-            km.p2p_paper_gen_conf_k:paper_gen,
-            km.p2p_paper_disc_conf_k:paper_disc,
-            km.p2p_lenovo_gen_conf_k:lenovo_gen,
-            km.p2p_lenovo_disc_conf_k: lenovo_disc
-        }
+        self.generator,self.discriminator = self.create_paper_gen_disc(gen_disc_layers_conf)
+        if self.model_type==km.cvaeu_model:
+            self.generator,self.discriminator = self.create_cvaeu_gen_disc(gen_disc_layers_conf)
 
     def obtain_nbis_results(self,execution_folder_name):
         self.init_nbis_results_variables(execution_folder_name)
@@ -790,6 +865,57 @@ class ThesisModel():
         scores_file.close()
         return matriz_to_enh,matriz_enhan
 
+    def measure_to_dict(self,measure):
+        dicc = {}
+        try: dicc['rss']=measure.rss
+        except: pass
+        try: dicc['vms']=measure.vms
+        except: pass
+        try: dicc['shared']=measure.shared
+        except: pass
+        try: dicc['text']=measure.text
+        except: pass
+        try: dicc['data']=measure.data
+        except: pass
+        try: dicc['lib']=measure.lib
+        except: pass
+        try: dicc['dirty']=measure.dirty
+        except: pass
+        try: dicc['pfaults']=measure.pfaults
+        except: pass
+        try: dicc['pageins']=measure.pageins
+        except: pass
+        try: dicc['uss']=measure.uss
+        except: pass
+        try: dicc['pss']=measure.pss
+        except: pass
+        try: dicc['swap']=measure.swap
+        except: pass
+        return dicc
+
+    def measure_performance(self,data_dir,num_imgs,result_json_name):
+        start_time = time.time()
+        counter=0
+        lista = [self.measure_to_dict(psutil.Process(os.getpid()).memory_full_info())]
+        for root,folders,files in os.walk(data_dir):
+            for file in files:
+                file_dir = os.path.join(root,file)
+                self.configure_decoder_case_olimpia_img(file_dir,file_dir[-3:])
+                img_read = tf.reshape(self.reading_imgs_method(file_dir),[1,self.N_H,self.N_W,self.N_C])
+                img_enhanced = self.enhance_fingerprints(img_read)
+                lista.append(self.measure_to_dict(psutil.Process(os.getpid()).memory_full_info()))
+                counter+=1
+                if counter == num_imgs: break
+            if counter == num_imgs: break
+
+        dicc = {
+            'num_imgs': num_imgs,
+            'total_time': np.round(time.time()-start_time,6),
+            'mean_time': np.round(time.time()-start_time,6)/num_imgs,
+            'measures': lista
+        }
+        json = self.save_dicc_into_json(dicc,os.path.join(self.root_dir,"{}_{}.json".format(num_imgs,result_json_name)))
+
 args,len_args = sys.argv,len(sys.argv)
 if len_args >=3:
     thesis_model = ThesisModel()
@@ -802,7 +928,11 @@ if len_args >=3:
         thesis_model.create_validation_images(args[4],int(args[5]))
     elif len_args == 3 and args[1] == "nbis":
         thesis_model.obtain_nbis_results(args[2])
+    elif len_args == 7 and args[1] == "performance":
+        thesis_model.load_overall_configuration_for_validation(args[2])
+        thesis_model.restore_checkpoint(args[3])
+        thesis_model.measure_performance(args[4],int(args[5]),args[6])
     else:
         print("=== Incorrect syntax or incomplete command list ===")
 else:
-    print("You must specify what do you want to do: thesis_model.py [train/valid/nbis] [parameter]")
+    print("You must specify what do you want to do: thesis_model.py [train/valid/nbis/performance] [parameter]")
