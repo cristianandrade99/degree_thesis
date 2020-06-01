@@ -16,6 +16,7 @@ import sys
 import cv2
 import wsq
 import os
+import gc
 
 class Sample(tf.keras.layers.Layer):
     def call(self,mean,logvar):
@@ -865,7 +866,8 @@ class ThesisModel():
         scores_file.close()
         return matriz_to_enh,matriz_enhan
 
-    def measure_to_dict(self,measure):
+    def measure_to_dict(self):
+        measure = psutil.Process(os.getpid()).memory_full_info()
         dicc = {}
         try: dicc['rss']=measure.rss
         except: pass
@@ -893,28 +895,37 @@ class ThesisModel():
         except: pass
         return dicc
 
-    def measure_performance(self,data_dir,num_imgs,result_json_name):
+    def measure_performance(self,data_dir,num_imgs):
         start_time = time.time()
         counter=0
-        lista = [self.measure_to_dict(psutil.Process(os.getpid()).memory_full_info())]
+        lista = [{'time':time.time(),'measures':self.measure_to_dict()}]
         for root,folders,files in os.walk(data_dir):
             for file in files:
                 file_dir = os.path.join(root,file)
                 self.configure_decoder_case_olimpia_img(file_dir,file_dir[-3:])
                 img_read = tf.reshape(self.reading_imgs_method(file_dir),[1,self.N_H,self.N_W,self.N_C])
                 img_enhanced = self.enhance_fingerprints(img_read)
-                lista.append(self.measure_to_dict(psutil.Process(os.getpid()).memory_full_info()))
+                lista.append({'time':time.time(),'measures':self.measure_to_dict()})
+                gc.collect()
                 counter+=1
                 if counter == num_imgs: break
             if counter == num_imgs: break
+        return lista
 
-        dicc = {
-            'num_imgs': num_imgs,
-            'total_time': np.round(time.time()-start_time,6),
-            'mean_time': np.round(time.time()-start_time,6)/num_imgs,
-            'measures': lista
-        }
-        json = self.save_dicc_into_json(dicc,os.path.join(self.root_dir,"{}_{}.json".format(num_imgs,result_json_name)))
+    def complete_measure_performance(self,args):
+        exec_name = args[2]
+        check_num = args[3]
+        data_dir = args[4]
+        num_imgs = int(args[5])
+        json_name = args[6]
+
+        self.load_overall_configuration_for_validation(exec_name)
+        if check_num != 'none': self.restore_checkpoint(check_num)
+        dicc = {'num_imgs': num_imgs,'ejecuciones':[]}
+        for i in range(3):
+            lista_actual = self.measure_performance(data_dir,num_imgs)
+            dicc['ejecuciones'].append(lista_actual)
+        self.save_dicc_into_json(dicc,os.path.join(self.root_dir,"{}_{}.json".format(num_imgs,json_name)))
 
 args,len_args = sys.argv,len(sys.argv)
 if len_args >=3:
@@ -929,9 +940,7 @@ if len_args >=3:
     elif len_args == 3 and args[1] == "nbis":
         thesis_model.obtain_nbis_results(args[2])
     elif len_args == 7 and args[1] == "performance":
-        thesis_model.load_overall_configuration_for_validation(args[2])
-        thesis_model.restore_checkpoint(args[3])
-        thesis_model.measure_performance(args[4],int(args[5]),args[6])
+        thesis_model.complete_measure_performance(args)
     else:
         print("=== Incorrect syntax or incomplete command list ===")
 else:
