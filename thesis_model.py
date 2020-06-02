@@ -205,14 +205,31 @@ class ThesisModel():
         self.validation_model_output_images_dir = os.path.join(self.validation_outputs_dir,self.execution_folder_name,"images")
         if not os.path.exists(self.validation_model_output_images_dir): os.makedirs(self.validation_model_output_images_dir)
 
-        fps_to_enhance,fps_target = self.load_validation_images(data_origin_dir,num_fps)
-        fps_enhanced = self.enhance_fingerprints(fps_to_enhance).numpy()
+        patterns = os.path.join(data_origin_dir,"*")
+        self.configure_decoder_case_olimpia_img(data_origin_dir,"jpg")
 
-        for i in range(num_fps):
-            for imgs,cat_name in zip([fps_to_enhance,fps_enhanced,fps_target],self.names_cats):
-                img = ((imgs[i,:,:,0]+1.0)*127.5).clip(0,255).astype(np.uint8)
-                img = Image.fromarray(img)
-                img.save(os.path.join(self.validation_model_output_images_dir,"{}-{}.png".format(cat_name,i)))
+        batch_size = 10
+
+        self.dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
+        .shuffle(8192)\
+        .take(num_fps)\
+        .map(self.reading_imgs_method,num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+        .map(self.dicc_map_funcs_tf[self.deter_func_key],num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+        .batch(batch_size,True)\
+        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+        counter_0=0
+        for fps_to_enhance,fps_target in self.dataset:
+            fps_enhanced = self.enhance_fingerprints(fps_to_enhance).numpy()
+
+            for imgs,cat_name in zip([fps_to_enhance.numpy(),fps_enhanced,fps_target.numpy()],self.names_cats):
+                counter_1=counter_0
+                for i in range(batch_size):
+                    img = ((imgs[i,:,:,0]+1.0)*127.5).clip(0,255).astype(np.uint8)
+                    img = Image.fromarray(img)
+                    img.save(os.path.join(self.validation_model_output_images_dir,"{}-{}.png".format(cat_name,counter_1)))
+                    counter_1+=1
+            counter_0+=batch_size
 
         print("Validation images created successfully")
 
