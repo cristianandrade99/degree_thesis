@@ -124,13 +124,11 @@ class ThesisModel():
 
     # Loads training data
     def load_training_data(self):
-        patterns = os.path.join(self.data_dir_patt[0],"*{}".format(self.data_dir_patt[1]))
-        self.configure_decoder_case_olimpia_img(self.data_dir_patt[0],self.data_dir_patt[1])
-
+        patterns = os.path.join(self.data_dir_patt,"*.png")
         self.dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
+        .shuffle(32000)\
         .take(self.num_images_training)\
-        .shuffle(8192)\
-        .map(self.reading_imgs_method,num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+        .map(self.read_img,num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .map(self.dicc_map_funcs_tf[self.deter_func_key],num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .batch(self.batch_size,True)\
         .cache(self.cache_dir)\
@@ -144,10 +142,9 @@ class ThesisModel():
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_target_tape, tf.GradientTape() as disc_enhanced_tape:
             mean,logvar,fps_enhanced=None,None,None
 
-            if self.model_type==km.p2p_model:
-                fps_enhanced = self.generator(fps_to_enhance, training=True)
-            elif self.model_type==km.cvaeu_model:
-                fps_enhanced,mean,logvar = self.generator(fps_to_enhance, training=True)
+            fps_enhanced = self.generator(fps_to_enhance, training=True)
+            if type(fps_enhanced) == type(()):
+                fps_enhanced,mean,logvar = fps_enhanced
 
             fps_target_logits = self.discriminator([fps_to_enhance,fps_target],training=True)
             fps_enhanced_logits = self.discriminator([fps_to_enhance,fps_enhanced],training=True)
@@ -194,26 +191,22 @@ class ThesisModel():
         self.log_training_end()
 
     def enhance_fingerprints(self,fps_to_enhance):
-        if self.model_type==km.p2p_model:
-            fps_enhanced = self.generator(fps_to_enhance, training=False)
-        elif self.model_type==km.cvaeu_model:
-            fps_enhanced,_,_ = self.generator(fps_to_enhance, training=False)
+        fps_enhanced = self.generator(fps_to_enhance, training=True)
+        if type(fps_enhanced) == type(()):
+            fps_enhanced,_,_ = fps_enhanced
         return fps_enhanced
 
     # Creates the validation images given a trained model
     def create_validation_images(self,data_origin_dir,num_fps):
         self.validation_model_output_images_dir = os.path.join(self.validation_outputs_dir,self.execution_folder_name,"images")
         if not os.path.exists(self.validation_model_output_images_dir): os.makedirs(self.validation_model_output_images_dir)
-
         patterns = os.path.join(data_origin_dir,"*")
-        self.configure_decoder_case_olimpia_img(data_origin_dir,"jpg")
-
         batch_size = 10
 
         self.dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
-        .shuffle(8192)\
+        .shuffle(32000)\
         .take(num_fps)\
-        .map(self.reading_imgs_method,num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+        .map(self.read_img,num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .map(self.dicc_map_funcs_tf[self.deter_func_key],num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .batch(batch_size,True)\
         .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
@@ -233,24 +226,10 @@ class ThesisModel():
 
         print("Validation images created successfully")
 
-    # Configures reading method a decoder according to data
-    def configure_decoder_case_olimpia_img(self,data_dir,extension):
-        self.reading_imgs_method = self.read_img_olimpia if "Olimpia" in data_dir else self.read_img_standard
-        self.decoding_imgs_method = tf.io.decode_png if extension == self.png else\
-        tf.io.decode_jpeg if extension == self.jpg else None
-
     # Reads and decode a single image
-    def read_img_standard(self,file_path):
+    def read_img(self,file_path):
         img = tf.io.read_file(file_path)
-        img = self.decoding_imgs_method(img,channels=self.N_C)
-        img = tf.image.resize(img,[self.N_H,self.N_W],preserve_aspect_ratio=False)
-        return img
-
-    # Reads and decode a single image concatenating zeros left and rigth
-    def read_img_olimpia(self,file_path):
-        img = tf.io.read_file(file_path)
-        img = self.decoding_imgs_method(img,channels=self.N_C)
-        img = tf.concat([self.ones_400x72,img,self.ones_400x72],1)
+        img = tf.io.decode_png(img,channels=self.N_C)
         img = tf.image.resize(img,[self.N_H,self.N_W],preserve_aspect_ratio=False)
         return img
 
@@ -429,8 +408,7 @@ class ThesisModel():
         for root,folders,files in os.walk(directory):
             for file in files:
                 file_dir = os.path.join(root,file)
-                self.configure_decoder_case_olimpia_img(file_dir,file_dir[-3:])
-                img_read = self.reading_imgs_method(file_dir).numpy().reshape(1,self.N_H,self.N_W,self.N_C)
+                img_read = self.read_img(file_dir).numpy().reshape(1,self.N_H,self.N_W,self.N_C)
                 img_tar = np.concatenate((img_tar,img_read),0) if counter else img_read
                 img_mod = np.copy(img_read).reshape(self.N_H,self.N_W,self.N_C)
                 img_mod = self.dicc_map_funcs[self.deter_func_key](img_mod)
@@ -476,8 +454,29 @@ class ThesisModel():
         json.dump(dicc,file)
         file.close()
 
-    # ARCHITECTURES OF MODEL
-    def create_paper_gen_disc_configuration(self):
+    # MODEL ARCHITECTURES
+    def downsample(self,filters, size, apply_batchnorm=True):
+        initializer = tf.random_normal_initializer(0.0,0.02)
+        result = tf.keras.Sequential()
+        result.add(tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',kernel_initializer=initializer, use_bias=False))
+        if apply_batchnorm:
+            result.add(tf.keras.layers.BatchNormalization())
+        result.add(tf.keras.layers.LeakyReLU())
+        return result
+
+    def upsample(self,filters, size, apply_dropout=False):
+        initializer = tf.random_normal_initializer(0.0,0.02)
+        result = tf.keras.Sequential()
+        result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2,padding='same',kernel_initializer=initializer,use_bias=False))
+        result.add(tf.keras.layers.BatchNormalization())
+        if apply_dropout:
+          result.add(tf.keras.layers.Dropout(0.5))
+        result.add(tf.keras.layers.ReLU())
+        return result
+
+    # Creates a generator and a discriminator
+    def create_pix2pix_gen_disc(self):
+        # CONFIGURATION
         # [depth,n_f,apply_dropout on decoder]
         # n_f last decoder layer
         generator_config = [ [64,4,False],
@@ -489,19 +488,57 @@ class ThesisModel():
                              [512,4,True],
                              [512,4,None],
                              4 ]
-
         # [depth, n_f, apply_batchnorm]
         discriminator_config_1 = [ [64,4,False],
                                    [128,4,True],
                                    [256,4,True] ]
-
         # stride equal to 1
         discriminator_config_2 = [ [512,4],
                                     4 ]
 
-        return self.create_dicc(generator_config,discriminator_config_1,discriminator_config_2)
+        len_generator_config = len(generator_config)
 
-    def create_lenovo_gen_disc_configuration(self):
+        # GENERATOR
+        inputs = tf.keras.layers.Input(self.fps_shape)
+        x = inputs
+        initializer = tf.random_normal_initializer(0.0,0.02)
+        skips = []
+        down_stack = []
+        up_stack = []
+        for i in range(len_generator_config-1):
+            depth,n_f,apply_drop = generator_config[i]
+
+            down_stack.append(self.downsample(depth,n_f,apply_batchnorm=False if i==0 else True))
+            if (i<len_generator_config-2): up_stack.append(self.upsample(depth,n_f,apply_dropout=apply_drop))
+        up_stack = reversed(up_stack)
+        last = tf.keras.layers.Conv2DTranspose(self.N_C, generator_config[len_generator_config-1],strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
+        for down in down_stack:
+            x = down(x)
+            skips.append(x)
+        skips = reversed(skips[:-1])
+        for up, skip in zip(up_stack, skips):
+            x = up(x)
+            x = tf.keras.layers.Concatenate()([x, skip])
+        x = last(x)
+        generator = tf.keras.Model(inputs=inputs, outputs=x)
+
+        # DISCRIMINATOR
+        initializer = tf.random_normal_initializer(0.0, 0.02)
+        inp = tf.keras.layers.Input(shape=self.fps_shape, name='input_image')
+        tar = tf.keras.layers.Input(shape=self.fps_shape, name='target_image')
+        x = tf.keras.layers.concatenate([inp, tar])
+        for depth,n_f,apply_bn in discriminator_config_1:
+            x = self.downsample(depth, n_f,apply_bn)(x)
+        x = tf.keras.layers.Conv2D(discriminator_config_2[0][0], discriminator_config_2[0][1], padding='same', strides=1,kernel_initializer=initializer,use_bias=False)(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.LeakyReLU()(x)
+        x = tf.keras.layers.Conv2D(1, discriminator_config_2[1], strides=1,kernel_initializer=initializer)(x)
+        discriminator = tf.keras.Model(inputs=[inp, tar], outputs=x)
+
+        return generator, discriminator
+
+    def create_pix2pix_lenovo_gen_disc(self):
+        # CONFIGURATION
         # [depth,n_f,apply_dropout on decoder]
         # n_f last decoder layer
         generator_config = [ [1,4,False],
@@ -523,116 +560,86 @@ class ThesisModel():
         discriminator_config_2 = [ [1,4],
                                     4 ]
 
-        return self.create_dicc(generator_config,discriminator_config_1,discriminator_config_2)
-
-    def downsample(self,filters, size, apply_batchnorm=True):
-        initializer = tf.random_normal_initializer(0.0,0.02)
-        result = tf.keras.Sequential()
-        result.add(tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',kernel_initializer=initializer, use_bias=False))
-        if apply_batchnorm:
-            result.add(tf.keras.layers.BatchNormalization())
-        result.add(tf.keras.layers.LeakyReLU())
-        return result
-
-    def upsample(self,filters, size, apply_dropout=False):
-        initializer = tf.random_normal_initializer(0.0,0.02)
-        result = tf.keras.Sequential()
-        result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2,padding='same',kernel_initializer=initializer,use_bias=False))
-        result.add(tf.keras.layers.BatchNormalization())
-        if apply_dropout:
-          result.add(tf.keras.layers.Dropout(0.5))
-        result.add(tf.keras.layers.ReLU())
-        return result
-
-    # Creates a generator and a discriminator
-    def create_paper_gen_disc(self,gen_disc_config):
-
-        # CONFIGURATION
-        generator_config = gen_disc_config[km.generator_config_k]
         len_generator_config = len(generator_config)
-
-        discriminator_config_1 = gen_disc_config[km.discriminator_config_1_k]
-        discriminator_config_2 = gen_disc_config[km.discriminator_config_2_k]
 
         # GENERATOR
         inputs = tf.keras.layers.Input(self.fps_shape)
         x = inputs
         initializer = tf.random_normal_initializer(0.0,0.02)
         skips = []
-
         down_stack = []
         up_stack = []
-
         for i in range(len_generator_config-1):
             depth,n_f,apply_drop = generator_config[i]
 
             down_stack.append(self.downsample(depth,n_f,apply_batchnorm=False if i==0 else True))
             if (i<len_generator_config-2): up_stack.append(self.upsample(depth,n_f,apply_dropout=apply_drop))
-
         up_stack = reversed(up_stack)
-
         last = tf.keras.layers.Conv2DTranspose(self.N_C, generator_config[len_generator_config-1],strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
-
         for down in down_stack:
             x = down(x)
             skips.append(x)
-
         skips = reversed(skips[:-1])
         for up, skip in zip(up_stack, skips):
             x = up(x)
             x = tf.keras.layers.Concatenate()([x, skip])
-
         x = last(x)
         generator = tf.keras.Model(inputs=inputs, outputs=x)
 
         # DISCRIMINATOR
         initializer = tf.random_normal_initializer(0.0, 0.02)
-
         inp = tf.keras.layers.Input(shape=self.fps_shape, name='input_image')
         tar = tf.keras.layers.Input(shape=self.fps_shape, name='target_image')
         x = tf.keras.layers.concatenate([inp, tar])
-
         for depth,n_f,apply_bn in discriminator_config_1:
             x = self.downsample(depth, n_f,apply_bn)(x)
-
         x = tf.keras.layers.Conv2D(discriminator_config_2[0][0], discriminator_config_2[0][1], padding='same', strides=1,kernel_initializer=initializer,use_bias=False)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
         x = tf.keras.layers.Conv2D(1, discriminator_config_2[1], strides=1,kernel_initializer=initializer)(x)
-
         discriminator = tf.keras.Model(inputs=[inp, tar], outputs=x)
+
         return generator, discriminator
 
     # Creates a generator and a discriminator
-    def create_cvaeu_gen_disc(self,gen_disc_config):
+    def create_cvaeu_gen_disc(self):
         # CONFIGURATION
-        generator_config = gen_disc_config[km.generator_config_k]
-        len_generator_config = len(generator_config)
+        # [depth,n_f,apply_dropout on decoder]
+        # n_f last decoder layer
+        generator_config = [ [64,4,False],
+                             [128,4,False],
+                             [256,4,False],
+                             [512,4,False],
+                             [512,4,True],
+                             [512,4,True],
+                             [512,4,True],
+                             [512,4,None],
+                             4 ]
+        # [depth, n_f, apply_batchnorm]
+        discriminator_config_1 = [ [64,4,False],
+                                   [128,4,True],
+                                   [256,4,True] ]
+        # stride equal to 1
+        discriminator_config_2 = [ [512,4],
+                                    4 ]
 
-        discriminator_config_1 = gen_disc_config[km.discriminator_config_1_k]
-        discriminator_config_2 = gen_disc_config[km.discriminator_config_2_k]
+        len_generator_config = len(generator_config)
 
         # GENERATOR
         inputs = tf.keras.layers.Input(self.fps_shape)
         x = inputs
         initializer = tf.random_normal_initializer(0.0,0.02)
         skips = []
-
         down_stack = []
         up_stack = []
-
         for i in range(len_generator_config-1):
             depth,n_f,apply_drop = generator_config[i]
-
             down_stack.append(self.downsample(depth,n_f,apply_batchnorm=False if i==0 else True))
             if (i<len_generator_config-2): up_stack.append(self.upsample(depth,n_f,apply_dropout=apply_drop))
-
         up_stack = reversed(up_stack)
-
         for down in down_stack[:-1]:
             x = down(x)
             skips.append(x)
-
         latent_dim = 128
         x = tf.keras.layers.Flatten()(x)
         x = tf.keras.layers.Dense(2*latent_dim)(x)
@@ -640,54 +647,42 @@ class ThesisModel():
         z = self.sampler(mean,logvar)
         x = tf.keras.layers.Dense(1*1*512)(z)
         x = tf.keras.layers.Reshape((1,1,512))(x)
-
         skips = reversed(skips)
         for up, skip in zip(up_stack, skips):
             x = up(x)
             x = tf.keras.layers.Concatenate()([x, skip])
-
         last = tf.keras.layers.Conv2DTranspose(self.N_C, generator_config[len_generator_config-1],strides=2,padding='same',kernel_initializer=initializer,activation='tanh')
         x = last(x)
         cvaeu_generator = tf.keras.Model(inputs=inputs, outputs=[x,mean,logvar])
 
         # DISCRIMINATOR
         initializer = tf.random_normal_initializer(0.0, 0.02)
-
         inp = tf.keras.layers.Input(shape=self.fps_shape, name='input_image')
         tar = tf.keras.layers.Input(shape=self.fps_shape, name='target_image')
         x = tf.keras.layers.concatenate([inp, tar])
-
         for depth,n_f,apply_bn in discriminator_config_1:
             x = self.downsample(depth, n_f,apply_bn)(x)
-
         x = tf.keras.layers.Conv2D(discriminator_config_2[0][0], discriminator_config_2[0][1], padding='same', strides=1,kernel_initializer=initializer,use_bias=False)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
         x = tf.keras.layers.Conv2D(1, discriminator_config_2[1], strides=1,kernel_initializer=initializer)(x)
-
         cvae_discriminator = tf.keras.Model(inputs=[inp, tar], outputs=x)
-        return cvaeu_generator, cvae_discriminator
 
-    # Returns a dictionary with generator and discriminator configuration
-    def create_dicc(self,generator_config,discriminator_config_1,discriminator_config_2):
-        return {
-            km.generator_config_k: generator_config,
-            km.discriminator_config_1_k: discriminator_config_1,
-            km.discriminator_config_2_k: discriminator_config_2
-        }
+        return cvaeu_generator, cvae_discriminator
 
     # Generates candidate architectures
     def create_generator_discriminator(self,gen_disc_conf):
         self.gen_disc_conf = gen_disc_conf
-        self.model_type = gen_disc_conf[km.model_type_k]
 
-        gen_disc_layers_conf = self.create_lenovo_gen_disc_configuration()
-        if gen_disc_conf[km.env_type_k]==km.cluster_env:
-            gen_disc_layers_conf = self.create_paper_gen_disc_configuration()
+        architecture_funcs_dicc = {
+            km.pix2pix_model_k: self.create_pix2pix_gen_disc,
+            km.pix2pix_lenovo_model_k: self.create_pix2pix_lenovo_gen_disc,
+            km.cvaeu_model_k: self.create_cvaeu_gen_disc,
+            km.custom_model_1_k: None,
+            km.custom_model_2_k: None
+        }
 
-        self.generator,self.discriminator = self.create_paper_gen_disc(gen_disc_layers_conf)
-        if self.model_type==km.cvaeu_model:
-            self.generator,self.discriminator = self.create_cvaeu_gen_disc(gen_disc_layers_conf)
+        self.generator, self.discriminator = architecture_funcs_dicc[gen_disc_conf[km.architecture_k]]()
 
     def obtain_nbis_results(self,execution_folder_name):
         self.init_nbis_results_variables(execution_folder_name)
@@ -851,8 +846,8 @@ class ThesisModel():
         rects1 = ax.bar(x - width, to_enh_means, width, label="deteriorated")
         rects2 = ax.bar(x, enh_means, width, label="enhanced")
         rects3 = ax.bar(x + width, tar_means, width, label="ground truth")
-        ax.set_ylabel('Mean Quality')
-        ax.set_title('Mean Quality by to Enhance, Enhanced and Target')
+        ax.set_ylabel('Mean Quality',fontsize=20)
+        ax.set_title('Mean Quality by to Enhance, Enhanced and Target',fontsize=20)
         ax.set_xticks(x)
         ax.set_xticklabels(labels)
         ax.legend()
@@ -919,8 +914,7 @@ class ThesisModel():
         for root,folders,files in os.walk(data_dir):
             for file in files:
                 file_dir = os.path.join(root,file)
-                self.configure_decoder_case_olimpia_img(file_dir,file_dir[-3:])
-                img_read = tf.reshape(self.reading_imgs_method(file_dir),[1,self.N_H,self.N_W,self.N_C])
+                img_read = tf.reshape(self.read_img(file_dir),[1,self.N_H,self.N_W,self.N_C])
                 img_enhanced = self.enhance_fingerprints(img_read)
                 lista.append({'time':time.time(),'measures':self.measure_to_dict()})
                 gc.collect()
@@ -936,6 +930,7 @@ class ThesisModel():
         num_imgs = int(args[5])
         json_name = args[6]
 
+        print("PID Process:",os.getpid())
         self.load_overall_configuration_for_validation(exec_name)
         if check_num != 'none': self.restore_checkpoint(check_num)
         dicc = {'num_imgs': num_imgs,'ejecuciones':[]}
