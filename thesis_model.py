@@ -142,7 +142,7 @@ class ThesisModel():
             mean,logvar,fps_enhanced=None,None,None
 
             fps_enhanced = self.generator(fps_to_enhance, training=True)
-            if type(fps_enhanced) == type(()):
+            if type(fps_enhanced) == type([]):
                 fps_enhanced,mean,logvar = fps_enhanced
 
             fps_target_logits = self.discriminator([fps_to_enhance,fps_target],training=True)
@@ -191,7 +191,7 @@ class ThesisModel():
 
     def enhance_fingerprints(self,fps_to_enhance):
         fps_enhanced = self.generator(fps_to_enhance, training=True)
-        if type(fps_enhanced) == type(()):
+        if type(fps_enhanced) == type([]):
             fps_enhanced,_,_ = fps_enhanced
         return fps_enhanced
 
