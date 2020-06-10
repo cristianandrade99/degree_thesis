@@ -124,7 +124,7 @@ class ThesisModel():
 
     # Loads training data
     def load_training_data(self):
-        patterns = os.path.join(self.data_dir_patt,"*.png")
+        patterns = os.path.join(self.data_dir_patt,"*")
         self.dataset = tf.data.Dataset.list_files(patterns,shuffle=True)\
         .shuffle(32000)\
         .take(self.num_images_training)\
